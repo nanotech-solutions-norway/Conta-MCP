@@ -38,6 +38,7 @@ Conta-MCP/
 ├── .htaccess
 ├── .gitignore
 ├── README.md
+├── mcp-client-config.example.json
 ├── app/
 │   ├── AuditLogger.php
 │   ├── Config.php
@@ -60,8 +61,10 @@ Conta-MCP/
 │   └── smoke-test.sh
 └── docs/
     ├── CHATGPT_CONNECTION.md
+    ├── CONTA_ROUTE_MAP.md
     ├── DEPLOY_DOMENESHOP.md
     ├── SECURITY_POLICY.md
+    ├── STEP_BY_STEP_CREATION.md
     ├── TOOL_SCOPE.md
     └── VALIDATION_CHECKLIST.md
 ```
