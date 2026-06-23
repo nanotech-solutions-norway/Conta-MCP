@@ -68,7 +68,7 @@ final class Config
 
     public function writeToolsEnabled(): bool
     {
-        return (bool) $this->get('enable_write_tools', false);
+        return $this->toBool($this->get('enable_write_tools', false));
     }
 
     public function requestTimeoutSeconds(): int
@@ -102,5 +102,19 @@ final class Config
             'has_default_organization_id' => $this->organizationId() !== '',
             'write_tools_enabled' => $this->writeToolsEnabled(),
         ];
+    }
+
+    private function toBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return $value === 1;
+        }
+        if (is_string($value)) {
+            return in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on'], true);
+        }
+        return false;
     }
 }
