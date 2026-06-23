@@ -17,13 +17,13 @@ The AI client must never receive the Conta API key. The client receives only the
 Default deployment URL:
 
 ```text
-https://www.nanococept.no/conta-mcp/mcp
+https://www.nanoconcept.no/conta-mcp/mcp
 ```
 
 Health URL:
 
 ```text
-https://www.nanococept.no/conta-mcp/health
+https://www.nanoconcept.no/conta-mcp/health
 ```
 
 ## Authentication
@@ -90,7 +90,7 @@ Exact remote-MCP setup depends on the AI client or ChatGPT connector/app environ
   "mcpServers": {
     "conta-mcp": {
       "type": "http",
-      "url": "https://www.nanococept.no/conta-mcp/mcp",
+      "url": "https://www.nanoconcept.no/conta-mcp/mcp",
       "headers": {
         "Authorization": "Bearer REPLACE_WITH_MCP_BEARER_TOKEN"
       }
