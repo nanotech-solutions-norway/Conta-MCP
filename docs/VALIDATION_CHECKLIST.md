@@ -13,7 +13,7 @@
 - [ ] Files uploaded to `/public_html/conta-mcp/`.
 - [ ] `config/conta_config.local.php` created on the server only.
 - [ ] `storage/` is writable by PHP.
-- [ ] `https://www.nanococept.no/conta-mcp/health` returns JSON.
+- [ ] `https://www.nanoconcept.no/conta-mcp/health` returns JSON.
 - [ ] Direct access to `/conta-mcp/config/conta_config.local.php` is blocked.
 - [ ] Direct access to `/conta-mcp/storage/audit.log` is blocked.
 - [ ] Direct directory listing is disabled.
@@ -53,7 +53,7 @@
 - [ ] Manual approval workflow defined.
 - [ ] Audit log reviewed.
 - [ ] Repo visibility reviewed. Private repository recommended for production accounting integration.
-- [ ] Domain spelling verified: `nanococept.no` vs `nanoconcept.no`.
+- [ ] Domain verified: `www.nanoconcept.no`.
 
 ## Approval gate for write tools
 
