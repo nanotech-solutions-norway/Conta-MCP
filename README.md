@@ -2,7 +2,7 @@
 
 **Project:** Conta-MCP  
 **Target runtime:** Domeneshop PHP hosting  
-**Default public endpoint:** `https://www.nanococept.no/conta-mcp/mcp`  
+**Default public endpoint:** `https://www.nanoconcept.no/conta-mcp/mcp`  
 **Conta mode:** Sandbox first, production after validation  
 
 This repository contains a minimal, dependency-free PHP MCP-style JSON-RPC server for connecting an AI orchestrator to Conta through Conta's official REST API.
@@ -89,10 +89,6 @@ The initial tool set is deliberately conservative:
 2. Copy `config/conta_config.example.php` to `config/conta_config.local.php` on the server only.
 3. Insert the real server-side values in `conta_config.local.php`.
 4. Confirm `.htaccess` blocks direct access to `/app`, `/config`, `/storage`, `/docs`, `/tests`, and `/scripts`.
-5. Test `https://www.nanococept.no/conta-mcp/health`.
-6. Test JSON-RPC initialization against `https://www.nanococept.no/conta-mcp/mcp`.
+5. Test `https://www.nanoconcept.no/conta-mcp/health`.
+6. Test JSON-RPC initialization against `https://www.nanoconcept.no/conta-mcp/mcp`.
 7. Connect the endpoint to the AI/MCP client only after sandbox validation.
-
-## Domain note
-
-The requested deployment domain is written as `www.nanococept.no`. Existing NTSN context indicates `www.nanoconcept.no` is also used. Verify the spelling before production DNS and endpoint configuration.
