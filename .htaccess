@@ -1,0 +1,25 @@
+# Conta MCP root protection and routing
+# Intended location: /public_html/conta-mcp/.htaccess
+
+Options -Indexes
+RewriteEngine On
+
+# Block direct browser access to private application folders.
+RewriteRule ^(?:app|config|storage|docs|tests|scripts)(?:/|$) - [F,L]
+
+# Friendly endpoints when this repository is uploaded under /public_html/conta-mcp/.
+RewriteRule ^mcp/?$ public/index.php [L]
+RewriteRule ^health/?$ public/health.php [L]
+
+# Security headers for shared hosting.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# Prevent accidental serving of sensitive file types.
+<FilesMatch "\.(env|log|sqlite|sqlite3|db|bak|key|pem|crt|ini)$">
+  Require all denied
+</FilesMatch>
