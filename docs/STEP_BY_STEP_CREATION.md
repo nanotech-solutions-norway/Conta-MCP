@@ -82,7 +82,7 @@ config/conta_config.local.php
 Open:
 
 ```text
-https://www.nanococept.no/conta-mcp/health
+https://www.nanoconcept.no/conta-mcp/health
 ```
 
 Expected result:
@@ -106,7 +106,7 @@ If `configured` is false, check:
 Test initialize:
 
 ```bash
-curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
+curl -sS -X POST 'https://www.nanoconcept.no/conta-mcp/mcp' \
   -H 'Authorization: Bearer REPLACE_WITH_MCP_BEARER_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual-test","version":"1.0.0"}}}'
@@ -115,7 +115,7 @@ curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
 Test tools:
 
 ```bash
-curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
+curl -sS -X POST 'https://www.nanoconcept.no/conta-mcp/mcp' \
   -H 'Authorization: Bearer REPLACE_WITH_MCP_BEARER_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
@@ -135,7 +135,7 @@ curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
 Use endpoint:
 
 ```text
-https://www.nanococept.no/conta-mcp/mcp
+https://www.nanoconcept.no/conta-mcp/mcp
 ```
 
 Use authorization:
