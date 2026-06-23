@@ -1,11 +1,9 @@
 # Domeneshop Deployment Guide — Conta MCP
 
-**Target domain:** `https://www.nanococept.no`  
+**Target domain:** `https://www.nanoconcept.no`  
 **Recommended folder:** `/public_html/conta-mcp/`  
-**Primary endpoint:** `https://www.nanococept.no/conta-mcp/mcp`  
-**Health endpoint:** `https://www.nanococept.no/conta-mcp/health`
-
-> Verify whether the intended domain is `nanococept.no` or `nanoconcept.no` before production release.
+**Primary endpoint:** `https://www.nanoconcept.no/conta-mcp/mcp`  
+**Health endpoint:** `https://www.nanoconcept.no/conta-mcp/health`
 
 ## 1. Prepare Conta access
 
@@ -63,7 +61,7 @@ return [
     'conta_api_key' => 'PASTE_CONTA_SANDBOX_API_KEY_HERE',
     'default_organization_id' => 'PASTE_ORG_ID_HERE',
     'mcp_bearer_token' => 'PASTE_LONG_RANDOM_MCP_TOKEN_HERE',
-    'allowed_origin' => 'https://www.nanococept.no',
+    'allowed_origin' => 'https://www.nanoconcept.no',
     'enable_write_tools' => false,
     'create_invoice_draft_route' => '',
     'request_timeout_seconds' => 20,
@@ -94,7 +92,7 @@ The root `.htaccess` blocks `/app`, `/config`, `/storage`, `/docs`, and `/tests`
 Open:
 
 ```text
-https://www.nanococept.no/conta-mcp/health
+https://www.nanoconcept.no/conta-mcp/health
 ```
 
 Expected:
@@ -114,7 +112,7 @@ If `configured` is false, the server is missing either `conta_api_key` or `mcp_b
 Run from your local machine:
 
 ```bash
-curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
+curl -sS -X POST 'https://www.nanoconcept.no/conta-mcp/mcp' \
   -H 'Authorization: Bearer REPLACE_WITH_MCP_BEARER_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual-test","version":"1.0.0"}}}' | jq
@@ -136,7 +134,7 @@ Expected response includes:
 ## 8. Test tool listing
 
 ```bash
-curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
+curl -sS -X POST 'https://www.nanoconcept.no/conta-mcp/mcp' \
   -H 'Authorization: Bearer REPLACE_WITH_MCP_BEARER_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq
@@ -145,7 +143,7 @@ curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
 ## 9. Test health tool
 
 ```bash
-curl -sS -X POST 'https://www.nanococept.no/conta-mcp/mcp' \
+curl -sS -X POST 'https://www.nanoconcept.no/conta-mcp/mcp' \
   -H 'Authorization: Bearer REPLACE_WITH_MCP_BEARER_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"conta_health_check","arguments":{"checkConta":false}}}' | jq
