@@ -1,0 +1,30 @@
+# Local secrets and runtime configuration
+.env
+.env.*
+!.env.example
+config/conta_config.local.php
+config/*.local.php
+
+# Runtime logs / audit files
+storage/*.log
+storage/*.jsonl
+storage/*.db
+storage/*.sqlite
+storage/*.sqlite3
+storage/cache/*
+!storage/.gitkeep
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dependency folders if added later
+vendor/
+node_modules/
+
+# Temporary deployment archives
+*.zip
+*.tar
+*.tar.gz
