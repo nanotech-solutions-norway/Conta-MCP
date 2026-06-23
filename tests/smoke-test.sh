@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-https://www.nanococept.no/conta-mcp}"
+BASE_URL="${BASE_URL:-https://www.nanoconcept.no/conta-mcp}"
 TOKEN="${CONTA_MCP_BEARER_TOKEN:-}"
 
 if [[ -z "$TOKEN" ]]; then
