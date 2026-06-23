@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "conta-mcp": {
+      "type": "http",
+      "url": "https://www.nanococept.no/conta-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_CONTA_MCP_BEARER_TOKEN"
+      }
+    }
+  }
+}
