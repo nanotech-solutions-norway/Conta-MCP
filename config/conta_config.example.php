@@ -24,9 +24,7 @@ return [
     'mcp_bearer_token' => getenv('CONTA_MCP_BEARER_TOKEN') ?: '',
 
     // Exact allowed browser/client origin. Keep narrow.
-    // Requested domain: https://www.nanococept.no
-    // Verify spelling before production use.
-    'allowed_origin' => getenv('CONTA_MCP_ALLOWED_ORIGIN') ?: 'https://www.nanococept.no',
+    'allowed_origin' => getenv('CONTA_MCP_ALLOWED_ORIGIN') ?: 'https://www.nanoconcept.no',
 
     // Disabled by default. Read-only first.
     'enable_write_tools' => filter_var(getenv('CONTA_ENABLE_WRITE_TOOLS') ?: false, FILTER_VALIDATE_BOOLEAN),
