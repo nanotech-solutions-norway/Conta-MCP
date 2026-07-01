@@ -1,0 +1,32 @@
+{
+  "status": "NON_DEPLOYABLE_TEMPLATE_ONLY",
+  "phase": "Layer 4 / Phase 4.0",
+  "mode": "dry_run",
+  "writeExecuted": false,
+  "success": true,
+  "actionType": "example_future_action",
+  "riskClass": "R2",
+  "requiresHumanApproval": true,
+  "idempotencyKey": "example-uuid-or-deterministic-key",
+  "payloadHash": "sha256:example",
+  "preview": {
+    "humanSummary": "Example preview only. No write executed.",
+    "affectedObject": "example_object",
+    "amounts": [],
+    "dates": [],
+    "accounts": [],
+    "vatCodes": []
+  },
+  "accountingImpact": {
+    "debit": [],
+    "credit": [],
+    "period": "example"
+  },
+  "warnings": [],
+  "blockedReasons": [],
+  "auditPreview": {
+    "state": "DRY_RUN_PASSED",
+    "storeSecrets": false,
+    "operatorReference": "server-side-reference-only"
+  }
+}

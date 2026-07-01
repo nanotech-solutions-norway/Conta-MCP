@@ -1,0 +1,38 @@
+{
+  "package": "Conta_L4P40_WriteControl_Plan_1404_01072026",
+  "generatedAt": "14:04, 01.07.2026 Europe/Oslo",
+  "phase": "Layer 4 / Phase 4.0 — Write-Control Architecture Planning",
+  "planningOnly": true,
+  "implementationAllowed": false,
+  "runtimeChangeAllowed": false,
+  "writeSchemaAllowedInActiveCustomGPT": false,
+  "customGptWriteActionsAllowed": false,
+  "liveWritesAllowed": false,
+  "preservedRelease": {
+    "release": "Conta Bridge v2 Layer 3 Read-Only RC1",
+    "tag": "conta-bridge-v2-layer3-readonly-rc1-20260701",
+    "productionBase": "https://mcp.atlas-ai.no"
+  },
+  "baseline2024": {
+    "incomeTotal": 1422862,
+    "expenseTotal": 1414895,
+    "result": 7967
+  },
+  "controls": {
+    "writePaused": true,
+    "runtimeWriteBlocked": true,
+    "openApiGetOnly": true,
+    "blockedMethods": [
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE"
+    ],
+    "genericHealthExposed": false,
+    "officialContaReport": false,
+    "formalRouteVerified": false,
+    "comparisonEnabled": false,
+    "writeActionsExposed": false,
+    "statutorySubmissionExposed": false
+  }
+}

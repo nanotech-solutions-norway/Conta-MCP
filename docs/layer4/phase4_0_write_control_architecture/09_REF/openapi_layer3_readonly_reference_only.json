@@ -1,0 +1,412 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Conta Bridge v2 Layer 3.6 Read-Only Custom GPT Schema",
+    "version": "2.0-layer3-phase3-6-readonly",
+    "description": "Read-only Conta Bridge schema for derived report hardening and Custom GPT validation. Writes remain paused."
+  },
+  "servers": [
+    {
+      "url": "https://mcp.atlas-ai.no"
+    }
+  ],
+  "paths": {
+    "/api/v2/write-status": {
+      "get": {
+        "operationId": "getWriteStatus",
+        "summary": "Get write status",
+        "description": "Returns authoritative write-pause and GET-only runtime controls.",
+        "responses": {
+          "200": {
+            "description": "Get write status"
+          }
+        }
+      }
+    },
+    "/api/v2/route-map": {
+      "get": {
+        "operationId": "getRouteMap",
+        "summary": "Get route map",
+        "description": "Returns existing bridge route map without exposing write methods.",
+        "responses": {
+          "200": {
+            "description": "Get route map"
+          }
+        }
+      }
+    },
+    "/api/v2/capability-matrix": {
+      "get": {
+        "operationId": "getCapabilityMatrix",
+        "summary": "Get capability matrix",
+        "description": "Returns existing bridge capability matrix and write-pause controls.",
+        "responses": {
+          "200": {
+            "description": "Get capability matrix"
+          }
+        }
+      }
+    },
+    "/api/v2/accounting/management-summary": {
+      "get": {
+        "operationId": "getManagementSummary",
+        "summary": "Management summary",
+        "description": "Returns validated derived management summary. Not an official Conta report.",
+        "responses": {
+          "200": {
+            "description": "Management summary"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/income-and-expenses": {
+      "get": {
+        "operationId": "getIncomeAndExpenses",
+        "summary": "Income and expenses",
+        "description": "Returns derived income and expense data for a year.",
+        "responses": {
+          "200": {
+            "description": "Income and expenses"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/accounts-receivable-summary": {
+      "get": {
+        "operationId": "getAccountsReceivableSummary",
+        "summary": "AR summary",
+        "description": "Returns controlled accounts receivable summary data.",
+        "responses": {
+          "200": {
+            "description": "AR summary"
+          }
+        }
+      }
+    },
+    "/api/v2/accounting/accounts-payable-summary": {
+      "get": {
+        "operationId": "getAccountsPayableSummary",
+        "summary": "AP summary",
+        "description": "Returns controlled accounts payable summary data.",
+        "responses": {
+          "200": {
+            "description": "AP summary"
+          }
+        }
+      }
+    },
+    "/api/v2/accounting/formal-report-status": {
+      "get": {
+        "operationId": "getFormalReportStatus",
+        "summary": "Formal report status",
+        "description": "Returns formal report diagnostic status. Comparison remains gated.",
+        "responses": {
+          "200": {
+            "description": "Formal report status"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/formal-report-route-discovery": {
+      "get": {
+        "operationId": "getFormalReportRouteDiscovery",
+        "summary": "Formal route discovery",
+        "description": "Returns formal route diagnostic evidence without enabling comparison.",
+        "responses": {
+          "200": {
+            "description": "Formal route discovery"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/report-comparison-summary": {
+      "get": {
+        "operationId": "getReportComparisonSummary",
+        "summary": "Report comparison summary",
+        "description": "Returns comparison gate status. Comparison stays disabled unless formal data verifies.",
+        "responses": {
+          "200": {
+            "description": "Report comparison summary"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/derived-report-hardening-status": {
+      "get": {
+        "operationId": "getDerivedReportHardeningStatus",
+        "summary": "Derived hardening status",
+        "description": "Shows Phase 3.5 derived reporting status and confirms comparison remains gated.",
+        "responses": {
+          "200": {
+            "description": "Derived hardening status"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/derived-profit-and-loss-hardening": {
+      "get": {
+        "operationId": "getDerivedProfitAndLossHardening",
+        "summary": "Derived P&L",
+        "description": "Returns hardened derived P&L totals from validated management-summary inputs.",
+        "responses": {
+          "200": {
+            "description": "Derived P&L"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/derived-balance-hardening": {
+      "get": {
+        "operationId": "getDerivedBalanceHardening",
+        "summary": "Derived balance",
+        "description": "Returns balance derivation status and ledger reconstruction requirements.",
+        "responses": {
+          "200": {
+            "description": "Derived balance"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/derived-trial-balance-hardening": {
+      "get": {
+        "operationId": "getDerivedTrialBalanceHardening",
+        "summary": "Derived trial balance",
+        "description": "Returns trial-balance derivation status and account rollup requirements.",
+        "responses": {
+          "200": {
+            "description": "Derived trial balance"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/general-ledger-reconstruction-status": {
+      "get": {
+        "operationId": "getGeneralLedgerReconstructionStatus",
+        "summary": "General ledger status",
+        "description": "Returns controlled general-ledger reconstruction status from transactions.",
+        "responses": {
+          "200": {
+            "description": "General ledger status"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/invoice-journal-reconstruction-status": {
+      "get": {
+        "operationId": "getInvoiceJournalReconstructionStatus",
+        "summary": "Invoice journal status",
+        "description": "Returns controlled invoice-journal reconstruction status from AR/AP sources.",
+        "responses": {
+          "200": {
+            "description": "Invoice journal status"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/vat-summary-hardening": {
+      "get": {
+        "operationId": "getVatSummaryHardening",
+        "summary": "VAT summary status",
+        "description": "Returns VAT-summary derivation status. VAT submission remains blocked.",
+        "responses": {
+          "200": {
+            "description": "VAT summary status"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/ar-ap-normalization-status": {
+      "get": {
+        "operationId": "getArApNormalizationStatus",
+        "summary": "AR AP normalization",
+        "description": "Returns AR/AP source-total normalization status from validated summary routes.",
+        "responses": {
+          "200": {
+            "description": "AR AP normalization"
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/accounting/derived-report-route-map": {
+      "get": {
+        "operationId": "getDerivedReportRouteMap",
+        "summary": "Derived report route map",
+        "description": "Returns Phase 3.6 route metadata for derived report endpoints.",
+        "responses": {
+          "200": {
+            "description": "Derived report route map"
+          }
+        }
+      }
+    },
+    "/api/v2/accounting/derived-report-capability-matrix": {
+      "get": {
+        "operationId": "getDerivedReportCapabilityMatrix",
+        "summary": "Derived report capabilities",
+        "description": "Returns Phase 3.6 capability metadata for derived reporting.",
+        "responses": {
+          "200": {
+            "description": "Derived report capabilities"
+          }
+        }
+      }
+    },
+    "/api/v2/accounting/derived-report-release-status": {
+      "get": {
+        "operationId": "getDerivedReportReleaseStatus",
+        "summary": "Derived report release status",
+        "description": "Returns Phase 3.6 release status for read-only Custom GPT validation.",
+        "responses": {
+          "200": {
+            "description": "Derived report release status"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {},
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "MCP bridge token configured in the Custom GPT Action authentication UI."
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}

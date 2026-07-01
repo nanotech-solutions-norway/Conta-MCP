@@ -1,0 +1,14 @@
+actionCategory,exampleAction,riskClass,phase4_0Status,requiredBeforeImplementation
+Read summary,management-summary,R0,Existing read-only,Maintain Layer 3 controls
+Invoice preview,prepare invoice preview without saving,R1,Planning only,Dry-run contract and operator preview
+Invoice draft,create draft invoice,R1/R2,Not implemented,"Conta docs, sandbox, idempotency, audit"
+Invoice send,send invoice to customer,R3,Blocked,Communication safeguards and explicit approval
+Customer create,create customer,R2,Not implemented,"Sandbox proof, duplicate detection"
+Supplier create,create supplier,R2,Not implemented,"Sandbox proof, duplicate detection"
+Product create,create product/service item,R2,Not implemented,Mapping rules and sandbox proof
+Purchase register,register purchase,R2,Not implemented,VAT/account mapping and sandbox proof
+Voucher post,post voucher/journal entry,R2,Not implemented,Accounting review and sandbox proof
+Attachment upload,upload voucher/document,R2,Not implemented,Data handling/audit policy
+VAT submit,submit VAT report,R4,Blocked,Legal/accounting review and explicit future phase
+Annual settlement submit,submit annual settlement,R4,Blocked,Legal/accounting review and explicit future phase
+Payment execute,initiate bank payment,R5,Blocked,Not recommended for bridge write scope

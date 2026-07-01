@@ -1,0 +1,21 @@
+{
+  "status": "NON_DEPLOYABLE_TEMPLATE_ONLY",
+  "phase": "Layer 4 / Phase 4.0",
+  "auditId": "audit-example-uuid",
+  "state": "DRY_RUN_PASSED",
+  "actionType": "example_future_action",
+  "riskClass": "R2",
+  "dryRunId": "dryrun-example-uuid",
+  "approvalId": null,
+  "idempotencyKey": "example-idempotency-key",
+  "payloadHash": "sha256:example",
+  "providerRequestHash": null,
+  "providerResponseHash": null,
+  "operatorReference": "server-side-reference-only",
+  "resultStatus": "NO_WRITE_EXECUTED",
+  "writeExecuted": false,
+  "rollbackReference": null,
+  "createdAt": "timestamp",
+  "updatedAt": "timestamp",
+  "containsSecrets": false
+}

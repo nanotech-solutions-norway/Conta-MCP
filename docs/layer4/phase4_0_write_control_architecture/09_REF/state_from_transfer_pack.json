@@ -1,0 +1,38 @@
+{
+  "pack": "L4P40 short-path transfer pack",
+  "generatedAt": "14:39, 01.07.2026 Europe/Oslo",
+  "releaseTag": "conta-bridge-v2-layer3-readonly-rc1-20260701",
+  "productionBase": "https://mcp.atlas-ai.no",
+  "baseline2024": {
+    "incomeTotal": 1422862,
+    "expenseTotal": 1414895,
+    "result": 7967
+  },
+  "controls": {
+    "writePaused": true,
+    "runtimeWriteBlocked": true,
+    "openApiGetOnly": true,
+    "blockedMethods": [
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE"
+    ],
+    "officialContaReport": false,
+    "comparisonEnabled": false,
+    "writeActionsExposed": false,
+    "statutorySubmissionExposed": false
+  },
+  "phase4_0": {
+    "planningOnly": true,
+    "implementationAllowed": false,
+    "runtimeChangeAllowed": false,
+    "writeSchemaAllowed": false,
+    "customGptWriteActionsAllowed": false,
+    "liveWritesAllowed": false
+  },
+  "copiedReferences": {
+    "api": "/mnt/data/Conta_Bridge_v2_Phase3_10_ReadOnlyReleaseClosureArchive_1407_01072026/server/cm/api_v2.php",
+    "oapi": "/mnt/data/Conta_Bridge_v2_Phase3_10_ReadOnlyReleaseClosureArchive_1407_01072026/openapi/openapi-v2-layer3-6-readonly-custom-gpt-action-schema.json"
+  }
+}
