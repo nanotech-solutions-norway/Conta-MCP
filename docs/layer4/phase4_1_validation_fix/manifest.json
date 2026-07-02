@@ -1,0 +1,18 @@
+{
+  "package": "Conta_L4P41_ValidationScriptFix_v2_1042_02072026",
+  "timestamp": "10:42, 02.07.2026",
+  "classification": "validation-script-only",
+  "runtime_changes": false,
+  "openapi_changes": false,
+  "write_activation": false,
+  "files": [
+    {
+      "path": "08_TESTS/phase4_1_confirm_readonly_baseline_v3_ps51.ps1",
+      "sha256": "48ca7290241362fd6b6ae4f46b3c8cf667143348a27edb0d72c297df997dd32e"
+    },
+    {
+      "path": "README.md",
+      "sha256": "f7998dd08bdeaf10e35714f255a8ed25953307c5df617756d0b0c27c879b8661"
+    }
+  ]
+}
