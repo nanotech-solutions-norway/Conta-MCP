@@ -1,0 +1,16 @@
+{
+  "phase": "Layer 4 / Phase 4.7",
+  "name": "Local Stub Review and GitHub Archive",
+  "timestamp": "12:05, 02.07.2026",
+  "classification": "documentation_archive_only",
+  "production_base": "https://mcp.atlas-ai.no",
+  "baseline": "Conta Bridge v2 Layer 3 Read-Only RC1",
+  "phases_archived": ["4.2", "4.3", "4.4", "4.5_v2", "4.6", "4.7"],
+  "writes_implemented": false,
+  "runtime_modified": false,
+  "active_openapi_modified": false,
+  "post_put_patch_delete_exposed": false,
+  "provider_write_calls_allowed": false,
+  "production_upload_allowed": false,
+  "next_phase": "Layer 4 / Phase 4.8 — Source Evidence Intake Pack"
+}
