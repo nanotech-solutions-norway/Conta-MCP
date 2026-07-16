@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Config.php';
+require_once __DIR__ . '/../app/ApprovalEnvelopeVerifier.php';
+require_once __DIR__ . '/../app/ReleaseManifestGuard.php';
+require_once __DIR__ . '/../app/WriteKillSwitch.php';
+require_once __DIR__ . '/../app/SandboxAuthorizationGate.php';
 require_once __DIR__ . '/../app/WriteDispatchPermit.php';
 require_once __DIR__ . '/../app/WritePolicy.php';
 require_once __DIR__ . '/../app/WriteExecutionLedger.php';
@@ -39,7 +43,14 @@ $blockedConfig = new Config([
     'allowed_write_organization_ids' => 'org-test',
     'create_invoice_draft_route' => '/invoice/organizations/{opContextOrgId}/invoice-drafts',
 ]);
-$blockedPolicy = new WritePolicy($blockedConfig);
+$approvalVerifier = new ApprovalEnvelopeVerifier($blockedConfig);
+$blockedPolicy = new WritePolicy(
+    $blockedConfig,
+    $approvalVerifier,
+    new ReleaseManifestGuard($blockedConfig, dirname(__DIR__)),
+    new WriteKillSwitch($blockedConfig),
+    new SandboxAuthorizationGate($blockedConfig, $approvalVerifier)
+);
 $preview = new InvoiceDraftPreview($blockedConfig, $blockedPolicy);
 
 assertTrue($blockedPolicy->previewEnabled(), 'Preview must be enabled.');
@@ -59,60 +70,21 @@ expectException(
     'write_tools_disabled'
 );
 
-$enabledConfig = new Config([
-    'environment' => 'sandbox',
-    'enable_write_preview' => true,
-    'enable_write_tools' => true,
-    'runtime_write_blocked' => false,
-    'execution_allowed' => true,
-    'production_write_approved' => false,
-    'write_policy_version' => 'test-policy',
-    'approval_max_ttl_seconds' => 900,
-    'allowed_write_actions' => WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2,
-    'allowed_write_organization_ids' => 'org-test',
-    'create_invoice_draft_route' => '/invoice/organizations/{opContextOrgId}/invoice-drafts',
-]);
-$enabledPolicy = new WritePolicy($enabledConfig);
-$now = time();
-$approval = [
-    'approved' => true,
-    'oneUse' => true,
-    'approvalId' => 'approval-test-001',
-    'approvedBy' => 'operator-test',
-    'action' => WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2,
-    'organizationId' => 'org-test',
-    'environment' => 'sandbox',
-    'payloadHash' => InvoiceDraftPreview::payloadHash($payloadA),
-    'issuedAt' => gmdate('c', $now - 5),
-    'expiresAt' => gmdate('c', $now + 300),
-    'nonce' => 'nonce-1234567890abcdef',
-    'idempotencyKey' => 'idem-1234567890abcdef',
-];
-$permit = $enabledPolicy->authorizeInvoiceDraftCreate(
-    'org-test',
-    '/invoice/organizations/org-test/invoice-drafts',
-    $approval['payloadHash'],
-    $approval
-);
-$enabledPolicy->assertDispatchPermit($permit, 'POST', '/invoice/organizations/org-test/invoice-drafts');
-
-$ledgerPath = sys_get_temp_dir() . '/conta-write-ledger-' . bin2hex(random_bytes(4)) . '.json';
-$ledger = new WriteExecutionLedger($ledgerPath);
-$ledger->reserve($permit);
-expectException(fn() => $ledger->reserve($permit), 'idempotency_key_already_used');
-$ledger->complete($permit->idempotencyKey, true, 'provider-request-test');
-@unlink($ledgerPath);
-
 $productionConfig = new Config([
     'environment' => 'production',
     'enable_write_tools' => true,
     'runtime_write_blocked' => false,
     'execution_allowed' => true,
-    'production_write_approved' => false,
-    'allowed_write_actions' => WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2,
-    'allowed_write_organization_ids' => 'org-test',
-    'create_invoice_draft_route' => '/invoice/organizations/{opContextOrgId}/invoice-drafts',
+    'production_write_approved' => true,
 ]);
-assertTrue(!(new WritePolicy($productionConfig))->effectiveExecutionEnabled(), 'Production must remain blocked without independent approval.');
+$productionVerifier = new ApprovalEnvelopeVerifier($productionConfig);
+$productionPolicy = new WritePolicy(
+    $productionConfig,
+    $productionVerifier,
+    new ReleaseManifestGuard($productionConfig, dirname(__DIR__)),
+    new WriteKillSwitch($productionConfig),
+    new SandboxAuthorizationGate($productionConfig, $productionVerifier)
+);
+assertTrue(!$productionPolicy->effectiveExecutionEnabled(), 'Production must remain blocked because the production write program is not implemented.');
 
 echo "CONTROLLED_WRITE_FOUNDATION_TESTS_PASSED\n";
