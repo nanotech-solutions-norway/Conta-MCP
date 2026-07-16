@@ -8,8 +8,13 @@ final class WritePolicy
     public const TOOL_PREVIEW_INVOICE_DRAFT = 'conta_preview_invoice_draft';
     public const TOOL_EXECUTE_INVOICE_DRAFT = 'conta_create_invoice_draft';
 
-    public function __construct(private readonly Config $config)
-    {
+    public function __construct(
+        private readonly Config $config,
+        private readonly ApprovalEnvelopeVerifier $approvalVerifier,
+        private readonly ReleaseManifestGuard $releaseManifestGuard,
+        private readonly WriteKillSwitch $killSwitch,
+        private readonly SandboxAuthorizationGate $sandboxAuthorizationGate
+    ) {
     }
 
     public function previewEnabled(): bool
@@ -24,19 +29,12 @@ final class WritePolicy
 
     public function effectiveExecutionEnabled(): bool
     {
-        if (!$this->config->writeToolsEnabled()) {
+        try {
+            $this->assertExecutionGateOpen(self::ACTION_INVOICE_DRAFT_CREATE_V2);
+            return true;
+        } catch (Throwable) {
             return false;
         }
-        if ($this->config->runtimeWriteBlocked()) {
-            return false;
-        }
-        if (!$this->config->executionAllowed()) {
-            return false;
-        }
-        if ($this->config->environment() === 'production' && !$this->config->productionWriteApproved()) {
-            return false;
-        }
-        return true;
     }
 
     public function effectiveState(): array
@@ -52,6 +50,11 @@ final class WritePolicy
             'effective_execution_enabled' => $this->effectiveExecutionEnabled(),
             'allowed_write_actions' => $this->config->allowedWriteActions(),
             'allowed_write_organization_count' => count($this->config->allowedWriteOrganizationIds()),
+            'signed_approvals_required' => $this->config->requireSignedApprovals(),
+            'release_manifest' => $this->releaseManifestGuard->status(),
+            'kill_switch' => $this->killSwitch->status(self::ACTION_INVOICE_DRAFT_CREATE_V2),
+            'sandbox_authorization' => $this->sandboxAuthorizationGate->status(),
+            'readback_route_configured' => $this->config->readbackInvoiceDraftRoute() !== '',
         ];
     }
 
@@ -64,11 +67,19 @@ final class WritePolicy
         $action = self::ACTION_INVOICE_DRAFT_CREATE_V2;
         $method = 'POST';
 
-        $this->assertExecutionGateOpen();
+        $manifestHash = $this->assertExecutionGateOpen($action);
         $this->assertActionAllowed($action);
         $this->assertOrganizationAllowed($organizationId);
         $this->assertRouteMatches($organizationId, $path);
+        $this->approvalVerifier->verify($approval);
         $approvalData = $this->validateApproval($approval, $action, $organizationId, $payloadHash);
+        $authorizationId = $this->sandboxAuthorizationGate->authorize(
+            $action,
+            $organizationId,
+            $payloadHash,
+            $method,
+            $path
+        );
 
         return new WriteDispatchPermit(
             action: $action,
@@ -79,13 +90,15 @@ final class WritePolicy
             idempotencyKey: $approvalData['idempotencyKey'],
             approvalId: $approvalData['approvalId'],
             approvalNonce: $approvalData['nonce'],
-            policyVersion: $this->config->writePolicyVersion()
+            authorizationId: $authorizationId,
+            policyVersion: $this->config->writePolicyVersion(),
+            releaseManifestHash: $manifestHash
         );
     }
 
     public function assertDispatchPermit(WriteDispatchPermit $permit, string $method, string $path): void
     {
-        $this->assertExecutionGateOpen();
+        $manifestHash = $this->assertExecutionGateOpen($permit->action);
         $this->assertActionAllowed($permit->action);
 
         if (strtoupper($method) !== $permit->method) {
@@ -97,11 +110,24 @@ final class WritePolicy
         if ($permit->policyVersion !== $this->config->writePolicyVersion()) {
             throw new RuntimeException('write_dispatch_policy_version_mismatch');
         }
+        if (!hash_equals($manifestHash, $permit->releaseManifestHash)) {
+            throw new RuntimeException('write_dispatch_release_manifest_changed');
+        }
         $this->assertOrganizationAllowed($permit->organizationId);
         $this->assertRouteMatches($permit->organizationId, $path);
+        $authorizationId = $this->sandboxAuthorizationGate->authorize(
+            $permit->action,
+            $permit->organizationId,
+            $permit->payloadHash,
+            $permit->method,
+            $permit->path
+        );
+        if (!hash_equals($authorizationId, $permit->authorizationId)) {
+            throw new RuntimeException('write_dispatch_authorization_changed');
+        }
     }
 
-    private function assertExecutionGateOpen(): void
+    private function assertExecutionGateOpen(string $action): string
     {
         if (!$this->config->writeToolsEnabled()) {
             throw new RuntimeException('write_tools_disabled');
@@ -112,9 +138,23 @@ final class WritePolicy
         if (!$this->config->executionAllowed()) {
             throw new RuntimeException('execution_not_authorized');
         }
-        if ($this->config->environment() === 'production' && !$this->config->productionWriteApproved()) {
-            throw new RuntimeException('production_write_not_approved');
+        if ($this->config->environment() === 'production') {
+            if (!$this->config->productionWriteApproved()) {
+                throw new RuntimeException('production_write_not_approved');
+            }
+            throw new RuntimeException('production_write_program_not_implemented');
         }
+        if ($this->config->requireSignedApprovals() && $this->config->approvalSigningKey() === '') {
+            throw new RuntimeException('approval_signing_key_missing');
+        }
+        if ($this->config->readbackInvoiceDraftRoute() === '') {
+            throw new RuntimeException('invoice_draft_readback_route_not_configured');
+        }
+
+        $this->killSwitch->assertActionOpen($action);
+        $manifestHash = $this->releaseManifestGuard->assertApproved();
+        $this->sandboxAuthorizationGate->assertPacketReady();
+        return $manifestHash;
     }
 
     private function assertActionAllowed(string $action): void
