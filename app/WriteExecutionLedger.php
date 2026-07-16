@@ -13,6 +13,7 @@ final class WriteExecutionLedger
         $this->mutate(function (array &$state) use ($permit): void {
             $entries = $state['entries'] ?? [];
             $nonces = $state['approval_nonces'] ?? [];
+            $authorizations = $state['authorization_ids'] ?? [];
 
             if (isset($entries[$permit->idempotencyKey])) {
                 $existing = $entries[$permit->idempotencyKey];
@@ -24,6 +25,9 @@ final class WriteExecutionLedger
             if (isset($nonces[$permit->approvalNonce])) {
                 throw new RuntimeException('approval_nonce_already_used');
             }
+            if (isset($authorizations[$permit->authorizationId])) {
+                throw new RuntimeException('sandbox_authorization_already_used');
+            }
 
             $entries[$permit->idempotencyKey] = [
                 'status' => 'reserved',
@@ -31,29 +35,39 @@ final class WriteExecutionLedger
                 'organization_id_hash' => hash('sha256', $permit->organizationId),
                 'payload_hash' => $permit->payloadHash,
                 'approval_id_hash' => hash('sha256', $permit->approvalId),
+                'authorization_id_hash' => hash('sha256', $permit->authorizationId),
                 'policy_version' => $permit->policyVersion,
+                'release_manifest_hash' => $permit->releaseManifestHash,
                 'reserved_at_utc' => gmdate('c'),
             ];
             $nonces[$permit->approvalNonce] = [
                 'idempotency_key_hash' => hash('sha256', $permit->idempotencyKey),
                 'used_at_utc' => gmdate('c'),
             ];
+            $authorizations[$permit->authorizationId] = [
+                'idempotency_key_hash' => hash('sha256', $permit->idempotencyKey),
+                'used_at_utc' => gmdate('c'),
+            ];
 
             $state['entries'] = $entries;
             $state['approval_nonces'] = $nonces;
+            $state['authorization_ids'] = $authorizations;
         });
     }
 
-    public function complete(string $idempotencyKey, bool $ok, ?string $providerRequestId = null): void
+    public function complete(string $idempotencyKey, bool $ok, ?string $providerRequestId = null, ?string $readbackHash = null): void
     {
-        $this->mutate(function (array &$state) use ($idempotencyKey, $ok, $providerRequestId): void {
+        $this->mutate(function (array &$state) use ($idempotencyKey, $ok, $providerRequestId, $readbackHash): void {
             if (!isset($state['entries'][$idempotencyKey])) {
                 throw new RuntimeException('idempotency_reservation_not_found');
             }
-            $state['entries'][$idempotencyKey]['status'] = $ok ? 'completed' : 'failed';
+            $state['entries'][$idempotencyKey]['status'] = $ok ? 'completed_verified' : 'failed_or_unverified';
             $state['entries'][$idempotencyKey]['completed_at_utc'] = gmdate('c');
             if ($providerRequestId !== null && $providerRequestId !== '') {
                 $state['entries'][$idempotencyKey]['provider_request_id_hash'] = hash('sha256', $providerRequestId);
+            }
+            if ($readbackHash !== null && $readbackHash !== '') {
+                $state['entries'][$idempotencyKey]['readback_projection_hash'] = $readbackHash;
             }
         });
     }
