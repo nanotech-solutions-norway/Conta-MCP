@@ -66,9 +66,51 @@ final class Config
         return trim((string) $this->get('allowed_origin', ''));
     }
 
+    public function writePreviewEnabled(): bool
+    {
+        return $this->toBool($this->get('enable_write_preview', true));
+    }
+
     public function writeToolsEnabled(): bool
     {
         return $this->toBool($this->get('enable_write_tools', false));
+    }
+
+    public function runtimeWriteBlocked(): bool
+    {
+        return $this->toBool($this->get('runtime_write_blocked', true));
+    }
+
+    public function executionAllowed(): bool
+    {
+        return $this->toBool($this->get('execution_allowed', false));
+    }
+
+    public function productionWriteApproved(): bool
+    {
+        return $this->toBool($this->get('production_write_approved', false));
+    }
+
+    public function writePolicyVersion(): string
+    {
+        $value = trim((string) $this->get('write_policy_version', '2026-07-16-gate0-3'));
+        return $value !== '' ? $value : '2026-07-16-gate0-3';
+    }
+
+    public function allowedWriteOrganizationIds(): array
+    {
+        return $this->stringList($this->get('allowed_write_organization_ids', []));
+    }
+
+    public function allowedWriteActions(): array
+    {
+        return $this->stringList($this->get('allowed_write_actions', []));
+    }
+
+    public function approvalMaxTtlSeconds(): int
+    {
+        $ttl = (int) $this->get('approval_max_ttl_seconds', 900);
+        return max(60, min($ttl, 3600));
     }
 
     public function requestTimeoutSeconds(): int
@@ -80,6 +122,11 @@ final class Config
     public function auditLogPath(): string
     {
         return (string) $this->get('audit_log_path', __DIR__ . '/../storage/audit.log');
+    }
+
+    public function writeLedgerPath(): string
+    {
+        return (string) $this->get('write_ledger_path', __DIR__ . '/../storage/write-ledger.json');
     }
 
     public function createInvoiceDraftRoute(): string
@@ -100,8 +147,34 @@ final class Config
             'has_conta_api_key' => $this->apiKey() !== '',
             'has_mcp_bearer_token' => $this->bearerToken() !== '',
             'has_default_organization_id' => $this->organizationId() !== '',
+            'write_preview_enabled' => $this->writePreviewEnabled(),
             'write_tools_enabled' => $this->writeToolsEnabled(),
+            'runtime_write_blocked' => $this->runtimeWriteBlocked(),
+            'execution_allowed' => $this->executionAllowed(),
+            'production_write_approved' => $this->productionWriteApproved(),
+            'write_policy_version' => $this->writePolicyVersion(),
+            'allowed_write_action_count' => count($this->allowedWriteActions()),
+            'allowed_write_organization_count' => count($this->allowedWriteOrganizationIds()),
         ];
+    }
+
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($value as $item) {
+            $item = trim((string) $item);
+            if ($item !== '') {
+                $out[$item] = true;
+            }
+        }
+        return array_keys($out);
     }
 
     private function toBool(mixed $value): bool
