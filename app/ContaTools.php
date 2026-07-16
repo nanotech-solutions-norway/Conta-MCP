@@ -7,32 +7,32 @@ final class ContaTools
     public function __construct(
         private readonly Config $config,
         private readonly ContaClient $contaClient,
-        private readonly AuditLogger $auditLogger
+        private readonly AuditLogger $auditLogger,
+        private readonly WritePolicy $writePolicy,
+        private readonly InvoiceDraftPreview $invoiceDraftPreview
     ) {
     }
 
     public function listTools(): array
     {
-        $writeEnabled = $this->config->writeToolsEnabled();
-
-        return [
+        $tools = [
             $this->tool('conta_health_check', 'Conta Health Check', 'Check MCP configuration and Conta API readiness without exposing secrets.', [
                 'type' => 'object',
                 'properties' => [
                     'checkConta' => ['type' => 'boolean', 'description' => 'If true, attempts a lightweight Conta API call.'],
                 ],
             ]),
-            $this->tool('conta_list_organizations', 'List Conta Organizations', 'List organizations available to the configured Conta API key. Verify route in Conta Swagger before production.', [
+            $this->tool('conta_list_organizations', 'List Conta Organizations', 'List organizations available to the configured Conta API key.', [
                 'type' => 'object',
                 'properties' => new stdClass(),
             ]),
-            $this->tool('conta_list_customers', 'List Conta Customers', 'Search/list customers for an organization. Uses Conta list parameters q, hits, page and sort.', [
+            $this->tool('conta_list_customers', 'List Conta Customers', 'Search/list customers for an organization.', [
                 'type' => 'object',
                 'properties' => [
                     'organizationId' => ['type' => 'string', 'description' => 'Optional Conta organization ID. Uses default if omitted.'],
                     'q' => ['type' => 'string', 'description' => 'Optional full-text search query.'],
                     'hits' => ['type' => 'integer', 'description' => 'Optional page size.'],
-                    'page' => ['type' => 'integer', 'description' => 'Optional page number, zero-based in Conta examples.'],
+                    'page' => ['type' => 'integer', 'description' => 'Optional page number.'],
                     'sort' => ['type' => 'string', 'description' => 'Optional sort field.'],
                 ],
             ]),
@@ -44,13 +44,13 @@ final class ContaTools
                     'customerId' => ['type' => 'string', 'description' => 'Conta customer ID.'],
                 ],
             ]),
-            $this->tool('conta_list_invoices', 'List Conta Invoices', 'Search/list invoices for an organization. Uses Conta list parameters q, hits, page and sort.', [
+            $this->tool('conta_list_invoices', 'List Conta Invoices', 'Search/list invoices for an organization.', [
                 'type' => 'object',
                 'properties' => [
                     'organizationId' => ['type' => 'string', 'description' => 'Optional Conta organization ID. Uses default if omitted.'],
                     'q' => ['type' => 'string', 'description' => 'Optional full-text search query.'],
                     'hits' => ['type' => 'integer', 'description' => 'Optional page size.'],
-                    'page' => ['type' => 'integer', 'description' => 'Optional page number, zero-based in Conta examples.'],
+                    'page' => ['type' => 'integer', 'description' => 'Optional page number.'],
                     'sort' => ['type' => 'string', 'description' => 'Optional sort field.'],
                 ],
             ]),
@@ -62,17 +62,42 @@ final class ContaTools
                     'invoiceId' => ['type' => 'string', 'description' => 'Conta invoice ID.'],
                 ],
             ]),
-            $this->tool('conta_create_invoice_draft', 'Create Conta Invoice Draft', $writeEnabled
-                ? 'Create an invoice draft. Requires route verification and server-side write-tool enablement.'
-                : 'Disabled by policy. Enable only after sandbox validation and explicit approval.', [
-                'type' => 'object',
-                'required' => ['invoice'],
-                'properties' => [
-                    'organizationId' => ['type' => 'string', 'description' => 'Optional Conta organization ID. Uses default if omitted.'],
-                    'invoice' => ['type' => 'object', 'description' => 'Conta invoice draft payload matching Conta Swagger.'],
-                ],
-            ]),
         ];
+
+        if ($this->writePolicy->previewEnabled()) {
+            $tools[] = $this->tool(
+                WritePolicy::TOOL_PREVIEW_INVOICE_DRAFT,
+                'Preview Conta Invoice Draft',
+                'Normalize and hash an invoice draft proposal without calling Conta or mutating provider state.',
+                [
+                    'type' => 'object',
+                    'required' => ['invoice'],
+                    'properties' => [
+                        'organizationId' => ['type' => 'string', 'description' => 'Optional Conta organization ID. Uses default if omitted.'],
+                        'invoice' => ['type' => 'object', 'description' => 'Proposed invoice draft payload matching the verified Conta schema.'],
+                    ],
+                ]
+            );
+        }
+
+        if ($this->writePolicy->executionToolVisible()) {
+            $tools[] = $this->tool(
+                WritePolicy::TOOL_EXECUTE_INVOICE_DRAFT,
+                'Create Conta Invoice Draft',
+                'Create one allowlisted invoice draft using a one-use approval envelope and idempotency key.',
+                [
+                    'type' => 'object',
+                    'required' => ['invoice', 'approval'],
+                    'properties' => [
+                        'organizationId' => ['type' => 'string', 'description' => 'Optional Conta organization ID. Uses default if omitted.'],
+                        'invoice' => ['type' => 'object', 'description' => 'Approved invoice draft payload matching the verified Conta schema.'],
+                        'approval' => ['type' => 'object', 'description' => 'One-use approval envelope bound to action, organization, environment and payload hash.'],
+                    ],
+                ]
+            );
+        }
+
+        return $tools;
     }
 
     public function call(string $name, array $arguments): array
@@ -87,7 +112,8 @@ final class ContaTools
                 'conta_get_customer' => $this->contaClient->getCustomer($this->requireOrgId($arguments), $this->requireString($arguments, 'customerId')),
                 'conta_list_invoices' => $this->contaClient->listInvoices($this->requireOrgId($arguments), $this->listQuery($arguments)),
                 'conta_get_invoice' => $this->contaClient->getInvoice($this->requireOrgId($arguments), $this->requireString($arguments, 'invoiceId')),
-                'conta_create_invoice_draft' => $this->createInvoiceDraft($arguments),
+                WritePolicy::TOOL_PREVIEW_INVOICE_DRAFT => $this->previewInvoiceDraft($arguments),
+                WritePolicy::TOOL_EXECUTE_INVOICE_DRAFT => $this->createInvoiceDraft($arguments),
                 default => throw new InvalidArgumentException('Unknown tool: ' . $name),
             };
 
@@ -116,6 +142,7 @@ final class ContaTools
     private function healthCheck(bool $checkConta): array
     {
         $status = $this->config->publicStatus();
+        $status['effective_write_policy'] = $this->writePolicy->effectiveState();
 
         if (!$checkConta) {
             return ['status' => 200, 'ok' => true, 'body' => ['mcp' => 'ok', 'config' => $status]];
@@ -125,25 +152,32 @@ final class ContaTools
         return ['status' => $conta['status'], 'ok' => $conta['ok'], 'body' => ['mcp' => 'ok', 'config' => $status, 'conta' => $conta['body']]];
     }
 
-    private function createInvoiceDraft(array $arguments): array
+    private function previewInvoiceDraft(array $arguments): array
     {
-        if (!$this->config->writeToolsEnabled()) {
-            return [
-                'status' => 403,
-                'ok' => false,
-                'body' => [
-                    'error' => 'write_tools_disabled',
-                    'message' => 'Draft/write tools are disabled by server-side policy.',
-                ],
-            ];
-        }
-
         $invoice = $arguments['invoice'] ?? null;
         if (!is_array($invoice)) {
-            throw new InvalidArgumentException('invoice must be an object matching Conta Swagger.');
+            throw new InvalidArgumentException('invoice must be an object matching the verified Conta schema.');
         }
 
-        return $this->contaClient->createInvoiceDraft($this->requireOrgId($arguments), $invoice);
+        return [
+            'status' => 200,
+            'ok' => true,
+            'body' => $this->invoiceDraftPreview->build($this->requireOrgId($arguments), $invoice),
+        ];
+    }
+
+    private function createInvoiceDraft(array $arguments): array
+    {
+        $invoice = $arguments['invoice'] ?? null;
+        $approval = $arguments['approval'] ?? null;
+        if (!is_array($invoice)) {
+            throw new InvalidArgumentException('invoice must be an object matching the verified Conta schema.');
+        }
+        if (!is_array($approval)) {
+            throw new InvalidArgumentException('approval must be a one-use approval envelope.');
+        }
+
+        return $this->contaClient->createInvoiceDraft($this->requireOrgId($arguments), $invoice, $approval);
     }
 
     private function requireOrgId(array $arguments): string
