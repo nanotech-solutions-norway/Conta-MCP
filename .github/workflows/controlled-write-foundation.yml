@@ -19,6 +19,12 @@ jobs:
         with:
           php-version: '8.2'
       - name: PHP syntax validation
-        run: find app config public tests -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find app bin config public tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Controlled write foundation tests
         run: php tests/controlled-write-foundation.php
+      - name: Remaining control path tests
+        run: php tests/remaining-control-paths.php
+      - name: Verify examples remain fail-closed
+        run: |
+          php -r '$j=json_decode(file_get_contents("config/write-kill-switch.example.json"),true); if (($j["globalBlocked"] ?? null) !== true) exit(1);'
+          php -r '$j=json_decode(file_get_contents("config/sandbox-authorization.example.json"),true); if (($j["status"] ?? null) !== "PENDING_OPERATOR_VALIDATION") exit(1);'
