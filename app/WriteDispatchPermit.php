@@ -13,7 +13,9 @@ final readonly class WriteDispatchPermit
         public string $idempotencyKey,
         public string $approvalId,
         public string $approvalNonce,
-        public string $policyVersion
+        public string $authorizationId,
+        public string $policyVersion,
+        public string $releaseManifestHash
     ) {
     }
 }
