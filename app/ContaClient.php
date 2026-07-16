@@ -6,57 +6,55 @@ final class ContaClient
 {
     public function __construct(
         private readonly Config $config,
-        private readonly HttpClient $httpClient
+        private readonly HttpClient $httpClient,
+        private readonly WritePolicy $writePolicy,
+        private readonly WriteExecutionLedger $writeLedger,
+        private readonly AuditLogger $auditLogger
     ) {
-    }
-
-    public function get(string $path, array $query = []): array
-    {
-        return $this->request('GET', $path, null, $query);
-    }
-
-    public function post(string $path, array $body): array
-    {
-        return $this->request('POST', $path, $body);
-    }
-
-    public function put(string $path, array $body): array
-    {
-        return $this->request('PUT', $path, $body);
-    }
-
-    public function delete(string $path): array
-    {
-        return $this->request('DELETE', $path);
     }
 
     public function listOrganizations(): array
     {
-        // Verify route in Conta Swagger before production if this route differs for the account/product plan.
-        return $this->get('/organizations');
+        return $this->request('GET', '/organizations');
     }
 
     public function listCustomers(string $organizationId, array $query = []): array
     {
-        return $this->get('/invoice/organizations/' . rawurlencode($organizationId) . '/customers', $this->sanitizeListQuery($query));
+        return $this->request(
+            'GET',
+            '/invoice/organizations/' . rawurlencode($organizationId) . '/customers',
+            null,
+            $this->sanitizeListQuery($query)
+        );
     }
 
     public function getCustomer(string $organizationId, string $customerId): array
     {
-        return $this->get('/invoice/organizations/' . rawurlencode($organizationId) . '/customers/' . rawurlencode($customerId));
+        return $this->request(
+            'GET',
+            '/invoice/organizations/' . rawurlencode($organizationId) . '/customers/' . rawurlencode($customerId)
+        );
     }
 
     public function listInvoices(string $organizationId, array $query = []): array
     {
-        return $this->get('/invoice/organizations/' . rawurlencode($organizationId) . '/invoices', $this->sanitizeListQuery($query));
+        return $this->request(
+            'GET',
+            '/invoice/organizations/' . rawurlencode($organizationId) . '/invoices',
+            null,
+            $this->sanitizeListQuery($query)
+        );
     }
 
     public function getInvoice(string $organizationId, string $invoiceId): array
     {
-        return $this->get('/invoice/organizations/' . rawurlencode($organizationId) . '/invoices/' . rawurlencode($invoiceId));
+        return $this->request(
+            'GET',
+            '/invoice/organizations/' . rawurlencode($organizationId) . '/invoices/' . rawurlencode($invoiceId)
+        );
     }
 
-    public function createInvoiceDraft(string $organizationId, array $invoicePayload): array
+    public function createInvoiceDraft(string $organizationId, array $invoicePayload, array $approval): array
     {
         $route = $this->config->createInvoiceDraftRoute();
         if ($route === '') {
@@ -65,17 +63,62 @@ final class ContaClient
                 'ok' => false,
                 'body' => [
                     'error' => 'create_invoice_draft_route_not_configured',
-                    'message' => 'Set CONTA_ROUTE_CREATE_INVOICE_DRAFT after verifying the correct route in Conta Swagger.',
+                    'message' => 'Configure the verified Conta route server-side before authorization.',
                 ],
             ];
         }
 
-        $path = str_replace('{orgId}', rawurlencode($organizationId), $route);
-        return $this->post($path, $invoicePayload);
+        $path = str_replace(
+            ['{orgId}', '{opContextOrgId}'],
+            rawurlencode($organizationId),
+            $route
+        );
+        $payloadHash = InvoiceDraftPreview::payloadHash($invoicePayload);
+        $permit = $this->writePolicy->authorizeInvoiceDraftCreate(
+            $organizationId,
+            $path,
+            $payloadHash,
+            $approval
+        );
+
+        $this->writeLedger->reserve($permit);
+        $this->auditLogger->record('provider_write_authorized', [
+            'action' => $permit->action,
+            'method' => $permit->method,
+            'path_template' => $route,
+            'organization_id_hash' => hash('sha256', $organizationId),
+            'payload_hash' => $payloadHash,
+            'approval_id_hash' => hash('sha256', $permit->approvalId),
+            'idempotency_key_hash' => hash('sha256', $permit->idempotencyKey),
+            'policy_version' => $permit->policyVersion,
+        ]);
+
+        try {
+            $result = $this->request('POST', $path, $invoicePayload, [], $permit);
+            $providerRequestId = $this->extractProviderRequestId($result);
+            $this->writeLedger->complete($permit->idempotencyKey, (bool) ($result['ok'] ?? false), $providerRequestId);
+            return $result;
+        } catch (Throwable $e) {
+            $this->writeLedger->complete($permit->idempotencyKey, false);
+            throw $e;
+        }
     }
 
-    private function request(string $method, string $path, ?array $body = null, array $query = []): array
-    {
+    private function request(
+        string $method,
+        string $path,
+        ?array $body = null,
+        array $query = [],
+        ?WriteDispatchPermit $permit = null
+    ): array {
+        $method = strtoupper($method);
+        if ($method !== 'GET') {
+            if ($permit === null) {
+                throw new RuntimeException('provider_mutation_requires_dispatch_permit');
+            }
+            $this->writePolicy->assertDispatchPermit($permit, $method, $path);
+        }
+
         if ($this->config->apiKey() === '') {
             return [
                 'status' => 500,
@@ -111,5 +154,19 @@ final class ContaClient
             }
         }
         return $out;
+    }
+
+    private function extractProviderRequestId(array $result): ?string
+    {
+        $body = $result['body'] ?? null;
+        if (!is_array($body)) {
+            return null;
+        }
+        foreach (['requestId', 'request_id', 'correlationId', 'correlation_id'] as $key) {
+            if (isset($body[$key]) && is_scalar($body[$key])) {
+                return (string) $body[$key];
+            }
+        }
+        return null;
     }
 }
