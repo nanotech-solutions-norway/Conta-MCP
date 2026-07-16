@@ -1,0 +1,21 @@
+{
+  "status": "PENDING_OPERATOR_VALIDATION",
+  "authorizationId": "PENDING_OPERATOR_VALIDATION",
+  "candidateId": "invoice_draft_create_v2",
+  "action": "invoice_draft_create_v2",
+  "environment": "sandbox",
+  "organizationId": "PENDING_OPERATOR_VALIDATION",
+  "payloadHash": "PENDING_OPERATOR_VALIDATION",
+  "method": "POST",
+  "path": "/invoice/organizations/PENDING_OPERATOR_VALIDATION/invoice-drafts",
+  "notBefore": "PENDING_OPERATOR_VALIDATION",
+  "expiresAt": "PENDING_OPERATOR_VALIDATION",
+  "maxProviderMutations": 1,
+  "readbackRequired": true,
+  "providerRouteValidated": false,
+  "testCompanyValidated": false,
+  "operatorDecisionReference": "PENDING_OPERATOR_VALIDATION",
+  "signatureAlgorithm": "HMAC-SHA256",
+  "keyId": "conta-sandbox-approval-v1",
+  "signature": "PENDING_OPERATOR_VALIDATION"
+}
