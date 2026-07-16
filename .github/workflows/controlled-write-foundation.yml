@@ -1,0 +1,24 @@
+name: Controlled Write Foundation Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - agent/controlled-write-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  php-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: PHP syntax validation
+        run: find app config public tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Controlled write foundation tests
+        run: php tests/controlled-write-foundation.php
