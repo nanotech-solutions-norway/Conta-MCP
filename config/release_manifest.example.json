@@ -1,0 +1,25 @@
+{
+  "manifest_version": "1.0",
+  "generated_at": "PENDING_OPERATOR_VALIDATION",
+  "classification": "PENDING_OPERATOR_VALIDATION",
+  "repository": "nanotech-solutions-norway/Conta-MCP",
+  "repository_commit": "PENDING_OPERATOR_VALIDATION",
+  "deployment_environment": "PENDING_OPERATOR_VALIDATION",
+  "runtime_base_url": "https://mcp.atlas-ai.no",
+  "deployed_runtime_hashes": "PENDING_OPERATOR_VALIDATION",
+  "active_schema_hash": "PENDING_OPERATOR_VALIDATION",
+  "effective_tools_list_hash": "PENDING_OPERATOR_VALIDATION",
+  "route_map_hash": "PENDING_OPERATOR_VALIDATION",
+  "write_policy_version": "2026-07-16-gate0-3",
+  "effective_write_state": {
+    "write_tools_enabled": false,
+    "runtime_write_blocked": true,
+    "execution_allowed": false,
+    "production_write_approved": false
+  },
+  "approved_by": "PENDING_OPERATOR_VALIDATION",
+  "evidence_references": [
+    "Layer 4 / Phase 4.66 execution-free administrative closure",
+    "Conta MCP Rollout Re-evaluation — 13:16, 16.07.2026"
+  ]
+}
