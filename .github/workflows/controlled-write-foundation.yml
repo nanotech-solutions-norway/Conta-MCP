@@ -1,0 +1,63 @@
+name: Controlled Write Foundation Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - agent/controlled-write-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  php-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: PHP syntax validation
+        run: find app bin config public tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Controlled write foundation tests
+        run: php tests/controlled-write-foundation.php
+      - name: Remaining control path tests
+        run: php tests/remaining-control-paths.php
+      - name: Verify examples remain fail-closed
+        run: |
+          php -r '$j=json_decode(file_get_contents("config/write-kill-switch.example.json"),true); if (($j["globalBlocked"] ?? null) !== true) exit(1);'
+          php -r '$j=json_decode(file_get_contents("config/sandbox-authorization.example.json"),true); if (($j["status"] ?? null) !== "PENDING_OPERATOR_VALIDATION") exit(1);'
+      - name: Build implementation evidence artifact
+        run: |
+          mkdir -p artifact/source
+          cp -R app bin config tests docs .github artifact/source/
+          cat > artifact/IMPLEMENTATION_SUMMARY.md <<'EOF'
+          # Conta MCP Remaining Control Paths — GitHub Actions Evidence
+
+          Status: IMPLEMENTED_ON_DRAFT_PR
+          Provider call performed: false
+          Sandbox mutation performed: false
+          Production deployment performed: false
+          Live write approved: false
+
+          Implemented controls:
+          - approved release-manifest guard
+          - dynamic global/action kill switch
+          - signed approval and sandbox authorization documents
+          - payload-bound one-call authorization
+          - authorization, nonce and idempotency replay prevention
+          - mandatory post-create readback verification
+          - readiness and manifest CLI tooling
+          - explicit one-call sandbox harness
+          - permanent production-program refusal
+          EOF
+          (cd artifact/source && zip -qr ../Conta_MCP_Remaining_Control_Paths_Source.zip .)
+          sha256sum artifact/Conta_MCP_Remaining_Control_Paths_Source.zip artifact/IMPLEMENTATION_SUMMARY.md > artifact/SHA256.txt
+      - name: Upload implementation evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: conta-mcp-remaining-control-paths
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30

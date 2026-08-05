@@ -1,11 +1,7 @@
 <?php
 /**
- * Tool policy for Conta MCP.
- *
- * Design rule:
- * - Read-only tools are available when the MCP endpoint is authenticated and configured.
- * - Write tools are listed but disabled unless explicitly enabled server-side.
- * - Destructive/accounting-posting tools are not implemented in this initial package.
+ * Canonical tool classification for Conta MCP.
+ * Effective tool discovery is calculated at runtime by WritePolicy.
  */
 
 return [
@@ -17,7 +13,10 @@ return [
         'conta_list_invoices',
         'conta_get_invoice',
     ],
-    'draft_write_tools' => [
+    'preview_tools' => [
+        'conta_preview_invoice_draft',
+    ],
+    'controlled_write_tools' => [
         'conta_create_invoice_draft',
     ],
     'blocked_tools' => [

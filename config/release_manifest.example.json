@@ -1,0 +1,24 @@
+{
+  "manifest_version": "2.0",
+  "status": "PENDING_OPERATOR_VALIDATION",
+  "generated_at_utc": "PENDING_OPERATOR_VALIDATION",
+  "repository_commit": "PENDING_OPERATOR_VALIDATION",
+  "write_policy_version": "2026-07-16-gate0-4",
+  "provider_schema_sha256": "b5c6493964f9895f2626730487b6230899c9979cc61b92d56adad44d69af4a43",
+  "route_map": {
+    "create_invoice_draft_route": "/invoice/organizations/{opContextOrgId}/invoice-drafts",
+    "readback_invoice_draft_route": "PENDING_OPERATOR_VALIDATION"
+  },
+  "route_map_sha256": "PENDING_OPERATOR_VALIDATION",
+  "runtime_files": {
+    "app/Config.php": "PENDING_OPERATOR_VALIDATION"
+  },
+  "effective_write_state": {
+    "write_tools_enabled": false,
+    "runtime_write_blocked": true,
+    "execution_allowed": false,
+    "production_write_approved": false
+  },
+  "approved_by": "PENDING_OPERATOR_VALIDATION",
+  "approved_at_utc": "PENDING_OPERATOR_VALIDATION"
+}

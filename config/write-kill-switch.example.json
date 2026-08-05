@@ -1,0 +1,9 @@
+{
+  "globalBlocked": true,
+  "blockedActions": [
+    "invoice_draft_create_v2"
+  ],
+  "reason": "PENDING_OPERATOR_VALIDATION",
+  "updatedAtUtc": "PENDING_OPERATOR_VALIDATION",
+  "updatedBy": "PENDING_OPERATOR_VALIDATION"
+}
