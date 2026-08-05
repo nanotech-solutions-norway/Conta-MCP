@@ -2,14 +2,14 @@
 
 ## Decision
 
-The next authorized work unit is:
+The post-merge documentation baseline is closed. The next authorized work unit is:
 
 ```text
-POST_MERGE_BASELINE_CLOSURE
+LOCAL_DESKTOP_VALIDATION
 THEN_READ_ONLY_RUNTIME_INVENTORY
 ```
 
-Do not proceed directly to a sandbox mutation.
+Do not proceed directly to deployment or a sandbox mutation.
 
 ## Desktop execution sequence
 
@@ -19,17 +19,36 @@ Do not proceed directly to a sandbox mutation.
 git fetch origin --prune
 git checkout main
 git pull --ff-only origin main
-git rev-parse HEAD
+
+$Head = (git rev-parse HEAD).Trim()
+$RemoteMain = (git rev-parse origin/main).Trim()
+if ($Head -ne $RemoteMain) {
+    throw "Local HEAD does not equal origin/main. HEAD=$Head origin/main=$RemoteMain"
+}
+
+git merge-base --is-ancestor 689cf28d943b761e26d9d1a7ef2eaddf5b78cc07 HEAD
+if ($LASTEXITCODE -ne 0) {
+    throw "Controlled-write foundation commit is not an ancestor of HEAD"
+}
+
 git status --short
 ```
 
-Required commit:
+Required conditions:
+
+```text
+HEAD_EQUALS_ORIGIN_MAIN
+FOUNDATION_COMMIT_IS_ANCESTOR
+WORKING_TREE_CLEAN
+```
+
+The controlled-write foundation checkpoint is:
 
 ```text
 689cf28d943b761e26d9d1a7ef2eaddf5b78cc07
 ```
 
-The working tree must be clean.
+Do not treat that immutable checkpoint as the permanently current `main` SHA.
 
 ### Step 2 — Run local source validation
 
@@ -49,17 +68,19 @@ if ($LASTEXITCODE -ne 0) { throw "Remaining control-path tests failed" }
 git diff --exit-code
 ```
 
-Record the exact command output in a sanitized local validation report.
+Record the exact `$Head` value and sanitized command output in the local validation report.
 
-### Step 3 — Review this closure PR
+### Step 3 — Record the deployment candidate
 
-Confirm that the post-merge baseline:
+After local validation passes, record:
 
-- uses the canonical merge commit;
-- does not claim deployment or provider execution;
-- leaves all write gates closed;
-- preserves historical evidence;
-- marks local and runtime validation as pending where evidence is unavailable.
+```text
+deployment_candidate_commit=<validated HEAD>
+foundation_ancestor_confirmed=true
+local_validation=PASSED
+```
+
+This does not authorize deployment.
 
 ### Step 4 — Perform read-only Domeneshop inventory
 
@@ -72,7 +93,7 @@ Do not upload, overwrite, delete, rename or change permissions. Do not modify ru
 Compare:
 
 ```text
-canonical repository main
+validated deployment-candidate commit
 vs.
 active Domeneshop runtime
 ```
@@ -97,17 +118,18 @@ Deployment preparation is not deployment authorization.
 
 Stop immediately if any of the following occurs:
 
-- local HEAD differs from the canonical merge commit;
+- local HEAD differs from `origin/main`;
+- the controlled-write foundation commit is not an ancestor of HEAD;
 - the working tree contains unexplained changes;
 - PHP lint or either control test fails;
 - runtime files cannot be inventoried safely;
 - runtime configuration exposes secrets;
-- deployed code differs from expected source without explanation;
+- deployed code differs from the selected deployment candidate without explanation;
 - write tools appear in `tools/list` unexpectedly;
 - any non-GET provider request is observed;
 - current provider evidence conflicts with the implemented route or payload assumptions.
 
-## Gate after successful closure
+## Gate after successful validation and inventory
 
 The subsequent gate is:
 
@@ -121,4 +143,4 @@ It remains separate from:
 SANDBOX_ONE_CALL_AUTHORIZATION
 ```
 
-A separate explicit operator decision is required before one provider mutation.
+A separate explicit operator decision is required before deployment and another separate explicit operator decision is required before one provider mutation.

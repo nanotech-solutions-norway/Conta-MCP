@@ -16,6 +16,23 @@ NO_SECRET_DISCLOSURE
 
 Do not print or preserve raw values for API keys, bearer tokens, approval signing keys, organization IDs, customer data, invoice data or accounting records.
 
+## Source checkpoints
+
+Controlled-write foundation checkpoint:
+
+```text
+689cf28d943b761e26d9d1a7ef2eaddf5b78cc07
+```
+
+Before inventory, record the current validated deployment candidate:
+
+```text
+deployment_candidate_commit=PENDING_OPERATOR_VALIDATION
+foundation_ancestor_confirmed=PENDING_OPERATOR_VALIDATION
+```
+
+The deployment candidate must be the locally validated `HEAD` that equals `origin/main`. The foundation checkpoint must be an ancestor of that commit. Do not use the foundation SHA as a permanent alias for the moving `main` branch.
+
 ## Runtime identity
 
 - [ ] Public health endpoint identified.
@@ -83,26 +100,30 @@ Perform only after the runtime security checks pass:
 
 ## Drift comparison
 
-Compare the runtime against canonical repository commit:
+Compare the runtime against the recorded deployment candidate:
 
 ```text
-689cf28d943b761e26d9d1a7ef2eaddf5b78cc07
+deployment_candidate_commit=<validated HEAD equal to origin/main>
 ```
 
 For each runtime file:
 
-| Path | Repository hash | Runtime hash | Result |
+| Path | Candidate hash | Runtime hash | Result |
 |---|---|---|---|
 | `PENDING_INVENTORY` | `PENDING` | `PENDING` | `PENDING_REVIEW` |
 
 Any unexplained difference blocks release-manifest approval.
+
+If the runtime is intentionally on an earlier commit, record that exact commit and classify the difference. Do not silently treat an older runtime as matching current source.
 
 ## Evidence package
 
 Produce a sanitized evidence package containing:
 
 - inventory timestamp;
-- canonical repository commit;
+- deployment-candidate commit;
+- controlled-write foundation ancestry result;
+- deployed runtime commit, if known;
 - PHP/runtime version;
 - endpoint status results;
 - file hash comparison;
