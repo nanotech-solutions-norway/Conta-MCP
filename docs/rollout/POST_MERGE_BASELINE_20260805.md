@@ -1,4 +1,4 @@
-# Conta MCP Post-Merge Baseline — 11:11, 05.08.2026
+# Conta MCP Post-Merge Baseline — Updated 13:06, 05.08.2026
 
 ## Classification
 
@@ -7,7 +7,8 @@ CONTROLLED_WRITE_FOUNDATION_MERGED
 POST_MERGE_BASELINE_CLOSURE_COMPLETE
 POST_MERGE_CI_PASSED
 SOURCE_IMPLEMENTATION_COMPLETE
-LOCAL_DESKTOP_VALIDATION_PENDING
+LOCAL_DESKTOP_VALIDATION_VERIFIED
+READ_ONLY_RUNTIME_INVENTORY_AUTHORIZED
 RUNTIME_DEPLOYMENT_NOT_VERIFIED
 PROVIDER_EVIDENCE_INCOMPLETE
 SANDBOX_ONE_CALL_NOT_AUTHORIZED
@@ -36,9 +37,17 @@ PRODUCTION_WRITE_PROGRAM_NOT_IMPLEMENTED
 - Dependency review: `PASSED`
 - CodeQL / Actions analysis: `PASSED`
 
+### Local Desktop validation
+
+- Local repository root: `C:/Users/meyer/My Drive/NanoTech Solutions Norway/Prosjekter/Atlas Project/Custom ChatGPT models/Conta MCP/Conta-MCP_repo`
+- Validated deployment-candidate commit: `5a11673cf83e73873073b6f38bf84af0db13d8d9`
+- Validation timestamp: `2026-08-05T13:06:00+02:00`
+- Operator proof marker: `LOCAL_DESKTOP_VALIDATION_VERIFIED=true`
+- Detailed record: `docs/rollout/LOCAL_DESKTOP_VALIDATION_20260805.md`
+
 The foundation SHA is an immutable ancestry checkpoint. It is not a permanent substitute for the current `main` or deployment-candidate SHA.
 
-This record supersedes any statement that the controlled-write foundation remains only on an unmerged draft branch. Historical records remain valid as evidence of the state that existed when they were created.
+This record supersedes any statement that the controlled-write foundation remains only on an unmerged draft branch or that local Desktop validation remains pending. Historical records remain valid as evidence of the state that existed when they were created.
 
 ## Implemented source controls
 
@@ -83,61 +92,35 @@ No source merge, documentation update, manifest generation or local test grants 
 - Required GitHub checks passed for both closure states.
 - A superseding Google Drive status record exists in the controlled-write evidence folder.
 
-### Pending Desktop validation
+### Verified locally
 
-The operator must run the following from a clean local checkout:
+The operator ran the approved compact proof from the canonical local repository root. The proof reached:
 
-```powershell
-git fetch origin --prune
-git checkout main
-git pull --ff-only origin main
-
-$Head = (git rev-parse HEAD).Trim()
-$RemoteMain = (git rev-parse origin/main).Trim()
-if ($Head -ne $RemoteMain) {
-    throw "Local HEAD does not equal origin/main. HEAD=$Head origin/main=$RemoteMain"
-}
-
-git merge-base --is-ancestor 689cf28d943b761e26d9d1a7ef2eaddf5b78cc07 HEAD
-if ($LASTEXITCODE -ne 0) {
-    throw "Controlled-write foundation commit is not an ancestor of HEAD"
-}
-
-git status --short
-
-Get-ChildItem app,bin,config,public,tests -Recurse -Filter *.php |
-    ForEach-Object {
-        php -l $_.FullName
-        if ($LASTEXITCODE -ne 0) { throw "PHP syntax validation failed: $($_.FullName)" }
-    }
-
-php tests/controlled-write-foundation.php
-if ($LASTEXITCODE -ne 0) { throw "Controlled-write foundation tests failed" }
-
-php tests/remaining-control-paths.php
-if ($LASTEXITCODE -ne 0) { throw "Remaining control-path tests failed" }
-
-git diff --exit-code
+```text
+LOCAL_DESKTOP_VALIDATION_VERIFIED=true
 ```
 
-Record the resolved `$Head` value as the local validation commit. Do not hardcode a moving `main` SHA into future validation instructions.
+The marker is emitted only after successful repository identity, branch, `HEAD == origin/main`, foundation ancestry, clean-tree, PHP availability, PHP lint, controlled-write foundation test, remaining control-path test and post-test clean-tree assertions.
 
-Until the local result is recorded, classify local validation as `PENDING_OPERATOR_VALIDATION`.
+The validated deployment candidate is:
+
+```text
+5a11673cf83e73873073b6f38bf84af0db13d8d9
+```
 
 ## Remaining gates before deployment
 
-1. Complete local Desktop validation.
-2. Inspect the active Domeneshop runtime read-only.
-3. Select and record the exact deployment-candidate commit from validated `origin/main`.
-4. Compare deployed files and configuration state with that deployment candidate.
-5. Prepare a sanitized runtime drift report.
-6. Deploy only in a fail-closed configuration after a separate deployment decision.
-7. Validate health, MCP initialization, authenticated `tools/list`, read tools and preview-only behavior.
-8. Confirm the execution tool remains absent.
-9. Refresh provider schema and route evidence.
-10. Validate readback route, provider scopes, sandbox/test-company identity and rectification procedure.
-11. Generate an observed release manifest and leave it `PENDING_OPERATOR_VALIDATION` until reviewed.
-12. Require a separate explicit authorization before exactly one sandbox mutation.
+1. Inspect the active Domeneshop runtime read-only.
+2. Record the deployed release commit if available.
+3. Compare deployed files and configuration state with the validated deployment candidate.
+4. Prepare a sanitized runtime drift report.
+5. Deploy only in a fail-closed configuration after a separate deployment decision.
+6. Validate health, MCP initialization, authenticated `tools/list`, read tools and preview-only behavior.
+7. Confirm the execution tool remains absent.
+8. Refresh provider schema and route evidence.
+9. Validate readback route, provider scopes, sandbox/test-company identity and rectification procedure.
+10. Generate an observed release manifest and leave it `PENDING_OPERATOR_VALIDATION` until reviewed.
+11. Require a separate explicit authorization before exactly one sandbox mutation.
 
 ## Provider evidence state
 
@@ -165,8 +148,8 @@ No unresolved item may be interpreted as approval.
 ## Current authorized next action
 
 ```text
-LOCAL_DESKTOP_VALIDATION
-READ_ONLY_RUNTIME_INVENTORY
+READ_ONLY_DOMENESHOP_RUNTIME_INVENTORY
 NO_DEPLOYMENT
-NO_PROVIDER_CALL
+NO_CONFIG_CHANGE
+NO_PROVIDER_MUTATION
 ```
