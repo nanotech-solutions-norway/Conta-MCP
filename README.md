@@ -2,7 +2,8 @@
 
 **Project:** Conta-MCP  
 **Target runtime:** Domeneshop PHP hosting  
-**Default endpoint:** `https://www.nanoconcept.no/conta-mcp/mcp`  
+**Active endpoint:** `https://mcp.atlas-ai.no`  
+**Superseded endpoint:** `https://www.nanoconcept.no/conta-mcp/mcp` (GitHub Pages 404; not the active PHP runtime)  
 **Rollout mode:** Sandbox first; production write program not implemented  
 
 This repository contains a dependency-free PHP MCP-style JSON-RPC server for connecting an AI orchestrator to Conta through Conta's official REST API.
@@ -12,7 +13,11 @@ This repository contains a dependency-free PHP MCP-style JSON-RPC server for con
 ```text
 CONTROLLED_WRITE_FOUNDATION_MERGED
 POST_MERGE_CI_PASSED
-RUNTIME_DEPLOYMENT_NOT_VERIFIED
+LOCAL_DESKTOP_VALIDATION_VERIFIED
+PUBLIC_RUNTIME_INVENTORY_PHASE_2A_VERIFIED
+ACTIVE_RUNTIME_ENDPOINT_DISCOVERED
+RUNTIME_DEPLOYMENT_COMMIT_NOT_VERIFIED
+AUTHENTICATED_TOOL_INVENTORY_PENDING
 SANDBOX_ONE_CALL_NOT_AUTHORIZED
 PRODUCTION_WRITE_PROGRAM_NOT_IMPLEMENTED
 ```
@@ -170,13 +175,15 @@ A successful source test does not authorize deployment or a provider call.
 ## Current rollout records
 
 - `docs/rollout/POST_MERGE_BASELINE_20260805.md`
+- `docs/rollout/LOCAL_DESKTOP_VALIDATION_20260805.md`
+- `docs/rollout/PUBLIC_RUNTIME_INVENTORY_PHASE_2A_20260805.md`
 - `docs/rollout/DOCUMENTATION_DRIFT_REGISTER_20260805.md`
 - `docs/rollout/RUNTIME_INVENTORY_CHECKLIST_20260805.md`
 - `docs/rollout/RECOMMENDED_NEXT_ACTION_20260805.md`
 - `docs/rollout/OPERATOR_GATE_RUNBOOK.md`
 - `docs/rollout/PROVIDER_EVIDENCE_REGISTER.md`
 
-Historical phase and draft-branch records remain evidence of their original state. Use the post-merge baseline for current status.
+Historical phase and draft-branch records remain evidence of their original state. Use the post-merge baseline and superseding runtime inventory records for current status.
 
 ## Execution boundary
 
