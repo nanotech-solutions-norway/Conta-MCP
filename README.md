@@ -16,8 +16,11 @@ POST_MERGE_CI_PASSED
 LOCAL_DESKTOP_VALIDATION_VERIFIED
 PUBLIC_RUNTIME_INVENTORY_PHASE_2A_VERIFIED
 ACTIVE_RUNTIME_ENDPOINT_DISCOVERED
+AUTHENTICATED_RUNTIME_INVENTORY_PHASE_2B_VERIFIED
+LEGACY_PRODUCTION_RUNTIME_0_3_0_IDENTIFIED
+LEGACY_WRITE_GATE_CONTAINMENT_VERIFIED
 RUNTIME_DEPLOYMENT_COMMIT_NOT_VERIFIED
-AUTHENTICATED_TOOL_INVENTORY_PENDING
+PROVIDER_READ_CALLS_NOT_AUTHORIZED
 SANDBOX_ONE_CALL_NOT_AUTHORIZED
 PRODUCTION_WRITE_PROGRAM_NOT_IMPLEMENTED
 ```
@@ -29,6 +32,8 @@ Canonical merged foundation commit:
 ```
 
 The merged source includes read-only tools, a non-executing invoice-draft preview, and a fail-closed controlled-write path for exactly one authorized sandbox invoice-draft creation. Source availability does not grant execution authority.
+
+The active production endpoint currently reports legacy runtime version `0.3.0-mcp-atlas-ai`. That legacy runtime always advertises `conta_create_invoice_draft`, including when writes are disabled. The live server configuration has been verified with `enable_write_tools=false`, the advertised tool description reports that it is disabled by policy, and the legacy execution path checks the server-side flag before any provider operation. The legacy runtime remains deployment-drift evidence and must not be treated as equivalent to canonical `main`.
 
 ## Security position
 
@@ -82,7 +87,7 @@ The preview normalizes the proposed payload and returns a deterministic SHA-256 
 
 - `conta_create_invoice_draft`
 
-The execution tool is absent from `tools/list` unless every effective execution gate is valid and open. Direct invocation also fails closed.
+In canonical `main`, the execution tool is absent from `tools/list` unless every effective execution gate is valid and open. Direct invocation also fails closed.
 
 Required controls include:
 
@@ -177,6 +182,7 @@ A successful source test does not authorize deployment or a provider call.
 - `docs/rollout/POST_MERGE_BASELINE_20260805.md`
 - `docs/rollout/LOCAL_DESKTOP_VALIDATION_20260805.md`
 - `docs/rollout/PUBLIC_RUNTIME_INVENTORY_PHASE_2A_20260805.md`
+- `docs/rollout/AUTHENTICATED_RUNTIME_INVENTORY_PHASE_2B_20260805.md`
 - `docs/rollout/DOCUMENTATION_DRIFT_REGISTER_20260805.md`
 - `docs/rollout/RUNTIME_INVENTORY_CHECKLIST_20260805.md`
 - `docs/rollout/RECOMMENDED_NEXT_ACTION_20260805.md`
