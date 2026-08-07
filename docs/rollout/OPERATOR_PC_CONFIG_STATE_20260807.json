@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-08-07T13:40:00+02:00",
+  "active_pc": "OFFICE_PC",
+  "canonical": {
+    "github_repository": "nanotech-solutions-norway/Conta-MCP",
+    "default_branch": "main",
+    "drive_project_folder_id": "14G0b3Ptj__VnYhmOEPtMiUu0Yxq0T7qg",
+    "drive_repo_mirror_folder_id": "1RSaTbfDxpjjhc3-GpjvG2q4pwSwDicxg",
+    "controlled_write_evidence_folder_id": "1e7bNnrEzTHsvSAjwPRx29fRRbpHG31U-"
+  },
+  "profiles": {
+    "OFFICE_PC": {
+      "label": "Office PC",
+      "windows_user": "Ruben A. Meyer",
+      "repository_root": "C:\\Users\\Ruben A. Meyer\\source\\repos\\Conta-MCP",
+      "repository_location_policy": "LOCAL_NON_DRIVE_CHECKOUT",
+      "local_validation_state": "PENDING_CURRENT_PC_VALIDATION"
+    },
+    "LAPTOP_PC": {
+      "label": "Laptop PC",
+      "windows_user": "meyer",
+      "repository_root": "C:\\Users\\meyer\\My Drive\\NanoTech Solutions Norway\\Prosjekter\\Atlas Project\\Custom ChatGPT models\\Conta MCP\\Conta-MCP_repo",
+      "repository_location_policy": "LEGACY_DRIVE_SYNCED_CHECKOUT",
+      "last_validated": "2026-08-05",
+      "local_validation_state": "HISTORICALLY_VALIDATED_REVALIDATE_BEFORE_RESUME"
+    }
+  },
+  "switching": {
+    "accepted_operator_prompts": [
+      "Using Office PC",
+      "Using Laptop PC"
+    ],
+    "require_revalidation_before_path_dependent_operation": true,
+    "do_not_substitute_other_pc_path": true,
+    "do_not_store_secrets": true
+  },
+  "authorization_effect": "NONE"
+}
