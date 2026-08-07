@@ -1,0 +1,58 @@
+{
+  "recorded_at": "2026-08-07T00:10:00+02:00",
+  "phase": "2C",
+  "classification": "RUNTIME_DRIFT_REQUIRES_REVIEW",
+  "runtime_drift_classification": "LEGACY_SOURCE_DRIFT_CONFIRMED",
+  "comparison_complete": true,
+  "canonical": {
+    "repository": "nanotech-solutions-norway/Conta-MCP",
+    "branch": "main",
+    "commit": "7b0fee990cad291a5c01ee1468ba4329e0aeb543",
+    "local_worktree_clean": true,
+    "head_equals_origin_main": true
+  },
+  "runtime": {
+    "endpoint": "https://mcp.atlas-ai.no",
+    "ftps_root": "/Custom Models/conta-mcp",
+    "server_source_file_count": 11,
+    "canonical_source_file_count": 22,
+    "public_directory_absent": true,
+    "deployed_commit": "UNKNOWN"
+  },
+  "comparison": {
+    "match_count": 1,
+    "different_count": 10,
+    "server_only_count": 0,
+    "canonical_only_count": 11,
+    "deployed_source_matches_canonical_main": false,
+    "only_matching_file": "app/HttpClient.php"
+  },
+  "safety": {
+    "enable_write_tools": false,
+    "runtime_write_blocked": true,
+    "execution_allowed": false,
+    "production_write_approved": false,
+    "kill_switch_global_blocked": true,
+    "config_local_file_read": false,
+    "secret_values_printed": false,
+    "local_worktree_changed": false,
+    "ftp_upload_performed": false,
+    "server_configuration_changed": false,
+    "mcp_authentication_performed": false,
+    "provider_tool_called": false,
+    "provider_call_performed": false,
+    "sandbox_mutation_performed": false
+  },
+  "authorization": {
+    "direct_canonical_deployment_authorized": false,
+    "write_enablement_authorized": false,
+    "sandbox_one_call_authorized": false,
+    "authorized_next_phase": "PHASE_2D_FAIL_CLOSED_CANONICAL_DEPLOYMENT_PACKAGE_PREPARATION"
+  },
+  "progress": {
+    "stable_read_only_target_verified_gates": "5/8",
+    "stable_read_only_target_percent": 62.5,
+    "controlled_invoice_draft_target_verified_gates": "5/12",
+    "controlled_invoice_draft_target_percent": 41.7
+  }
+}
