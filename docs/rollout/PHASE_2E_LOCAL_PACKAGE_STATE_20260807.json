@@ -1,0 +1,49 @@
+{
+  "phase": "2E",
+  "date": "2026-08-07",
+  "classification": "PROTECTED_RUNTIME_ONLY_FAIL_CLOSED_PACKAGE_VALIDATED",
+  "repository": "nanotech-solutions-norway/Conta-MCP",
+  "source_branch": "main",
+  "source_commit": "54b0d02d6eafe423a1d4485dfc88bdb85a28f5d0",
+  "payload": {
+    "file_count": 18,
+    "sha256": "a7dc6133080c4c0fa70101da10624e012ea1c070e1ad9ddef5330be9ec2399b2",
+    "path_set_verified": true,
+    "secret_scan_passed": true
+  },
+  "manifest": {
+    "sha256": "f19caca506e84772b96b59ba65c2dd9782990290b18523a533a1d63e0e57ea7a",
+    "generated": true,
+    "verified": true
+  },
+  "validation": {
+    "php_version": "8.3.33",
+    "php_lint_passed": true,
+    "controlled_write_foundation_tests_passed": true,
+    "remaining_control_paths_tests_passed": true,
+    "bootstrap_compatibility_passed": true,
+    "local_worktree_clean_final": true
+  },
+  "topology": {
+    "public_document_root": "www/cm",
+    "protected_runtime_root": "/Custom Models/conta-mcp",
+    "public_bridge_preserve_in_place": true,
+    "public_bridge_changed": false
+  },
+  "safety": {
+    "enable_write_tools": false,
+    "runtime_write_blocked": true,
+    "execution_allowed": false,
+    "production_write_approved": false,
+    "kill_switch_global_blocked": true,
+    "ftp_upload_performed": false,
+    "server_configuration_changed": false,
+    "mcp_authentication_performed": false,
+    "provider_tool_called": false,
+    "provider_call_performed": false,
+    "sandbox_mutation_performed": false,
+    "write_tools_enabled": false
+  },
+  "phase_2e_local_package_build_complete": true,
+  "next_required_gate": "FAIL_CLOSED_CANONICAL_DEPLOYMENT_AUTHORIZATION"
+}
