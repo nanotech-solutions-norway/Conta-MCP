@@ -11,6 +11,8 @@
 | Operation ID | VERIFIED_OFFLINE | `v1MakeInvoiceDraft` |
 | Top-level required field | VERIFIED_OFFLINE | `registrationSource` |
 | Required line fields | VERIFIED_OFFLINE | `description`, `vatCode`, `discount`, `price`, `quantity` |
+| Request schema closure hash | VERIFIED_OFFICIAL_DOCS_20260811 | `e9bd13fc868d2e549576c39df6923f0eac5295d482a7f55f4ee75b8f9df545a4` |
+| Success-response schema closure hash | VERIFIED_OFFICIAL_DOCS_20260811 | `fb8282b847343172e6b994453449755cceb5657bb0e69c66a8bd1ac0aed3032a` |
 | Current official schema freshness | VERIFIED_OFFICIAL_DOCS_20260810 | OpenAPI 3.0.3, Conta API 1.0.0; official documents last modified 08.08.2026 |
 | Provider access model | VERIFIED_SANDBOX_RUNTIME_20260810 | Protected GET-only run `31418133692` authenticated the sandbox API key and confirmed organization-scoped subscription-endpoint access; no response body or identity value recorded |
 | Provider-native idempotency | PENDING_REVIEW | Generic idempotency exception exists, but no create-operation header, parameter, or guarantee is documented |
@@ -27,3 +29,5 @@ Detailed refresh evidence: `docs/rollout/CURRENT_PROVIDER_SCHEMA_SANDBOX_EVIDENC
 Authenticated sandbox evidence: `docs/rollout/READ_ONLY_SANDBOX_IDENTITY_ACCESS_VALIDATION_20260810.md`.
 
 Post-validation reconciliation: `docs/rollout/POST_READ_ONLY_SANDBOX_RECONCILIATION_20260811.md`.
+
+Canonical schema hash evidence: `docs/rollout/CANONICAL_INVOICE_DRAFT_SCHEMA_HASHES_20260811.md`.
