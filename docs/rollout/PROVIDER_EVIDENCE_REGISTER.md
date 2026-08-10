@@ -17,7 +17,7 @@
 | Sandbox/test-company identity | VERIFIED_SANDBOX_RUNTIME_20260810 | Configured sandbox organization appeared in the authenticated identity's accessible organization list; real ID remains server-side only |
 | Create response identifier | VERIFIED_SCHEMA_OPTIONAL | HTTP 200 model contains integer `id`; it is not declared top-level required |
 | Readback route | VERIFIED_OFFICIAL_DOCS_20260810 | `GET /invoice/organizations/{opContextOrgId}/invoice-drafts/{id}`; operation `v1ReadInvoiceDraft` |
-| Rectification procedure | PENDING_OPERATOR_VALIDATION | Must avoid send/post/delete and preserve evidence |
+| Rectification procedure | DRAFTED_PENDING_OPERATOR_APPROVAL | Conservative draft preserves any unsent sandbox object, blocks automatic retry/delete and requires separate cleanup authorization |
 | One-call operator authorization | NOT_GRANTED | Separate explicit authorization required |
 
 No unresolved provider item is interpreted as approval.
@@ -25,3 +25,5 @@ No unresolved provider item is interpreted as approval.
 Detailed refresh evidence: `docs/rollout/CURRENT_PROVIDER_SCHEMA_SANDBOX_EVIDENCE_REFRESH_20260810.md`.
 
 Authenticated sandbox evidence: `docs/rollout/READ_ONLY_SANDBOX_IDENTITY_ACCESS_VALIDATION_20260810.md`.
+
+Post-validation reconciliation: `docs/rollout/POST_READ_ONLY_SANDBOX_RECONCILIATION_20260811.md`.
