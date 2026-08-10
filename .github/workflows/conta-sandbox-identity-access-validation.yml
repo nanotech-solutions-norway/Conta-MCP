@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 10
     environment: conta-sandbox-secrets
     env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
       CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
       CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
     steps:
@@ -33,6 +35,15 @@ jobs:
           set -euo pipefail
           if [[ "${{ inputs.operation }}" != "VALIDATE_READ_ONLY_SANDBOX_IDENTITY_ACCESS" ]]; then
             echo "Unsupported operation." >&2
+            exit 1
+          fi
+
+          if [[ "$CONTA_ENVIRONMENT" != "sandbox" ]]; then
+            echo "Protected environment is not configured for sandbox." >&2
+            exit 1
+          fi
+          if [[ "$CONTA_API_BASE_URL" != "https://api.gateway.conta-sandbox.no" ]]; then
+            echo "Protected environment does not use the approved Conta sandbox gateway." >&2
             exit 1
           fi
 
@@ -73,7 +84,7 @@ jobs:
             --header 'Accept: application/json' \
             --connect-timeout 15 \
             --max-time 45 \
-            'https://api.gateway.conta-sandbox.no/invoice/organizations')
+            "${CONTA_API_BASE_URL}/invoice/organizations")
           organizations_curl_exit=$?
           set -e
 
@@ -104,7 +115,7 @@ jobs:
             --header 'Accept: application/json' \
             --connect-timeout 15 \
             --max-time 45 \
-            "https://api.gateway.conta-sandbox.no/invoice/organizations/${CONTA_ORG_ID}/subscription-plan")
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/subscription-plan")
           subscription_curl_exit=$?
           set -e
 
@@ -117,6 +128,7 @@ jobs:
             echo "## Conta sandbox identity and access validation"
             echo
             echo "- Sandbox API authenticated: true."
+            echo "- Sandbox environment enforced: true."
             echo "- Accessible organization count: ${accessible_organization_count}."
             echo "- Configured organization accessible: true."
             echo "- Organization-scoped endpoint accessible: true."
