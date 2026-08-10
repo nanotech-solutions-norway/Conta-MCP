@@ -12,9 +12,9 @@
 | Top-level required field | VERIFIED_OFFLINE | `registrationSource` |
 | Required line fields | VERIFIED_OFFLINE | `description`, `vatCode`, `discount`, `price`, `quantity` |
 | Current official schema freshness | VERIFIED_OFFICIAL_DOCS_20260810 | OpenAPI 3.0.3, Conta API 1.0.0; official documents last modified 08.08.2026 |
-| Provider access model | PARTIAL_CONTEXT | Official help documents `apiKey` access inherited from the creating user; effective account/plan access remains unobserved |
+| Provider access model | VERIFIED_SANDBOX_RUNTIME_20260810 | Protected GET-only run `31418133692` authenticated the sandbox API key and confirmed organization-scoped subscription-endpoint access; no response body or identity value recorded |
 | Provider-native idempotency | PENDING_REVIEW | Generic idempotency exception exists, but no create-operation header, parameter, or guarantee is documented |
-| Sandbox/test-company identity | PENDING_OPERATOR_VALIDATION | Server-side only; do not commit real IDs |
+| Sandbox/test-company identity | VERIFIED_SANDBOX_RUNTIME_20260810 | Configured sandbox organization appeared in the authenticated identity's accessible organization list; real ID remains server-side only |
 | Create response identifier | VERIFIED_SCHEMA_OPTIONAL | HTTP 200 model contains integer `id`; it is not declared top-level required |
 | Readback route | VERIFIED_OFFICIAL_DOCS_20260810 | `GET /invoice/organizations/{opContextOrgId}/invoice-drafts/{id}`; operation `v1ReadInvoiceDraft` |
 | Rectification procedure | PENDING_OPERATOR_VALIDATION | Must avoid send/post/delete and preserve evidence |
@@ -23,3 +23,5 @@
 No unresolved provider item is interpreted as approval.
 
 Detailed refresh evidence: `docs/rollout/CURRENT_PROVIDER_SCHEMA_SANDBOX_EVIDENCE_REFRESH_20260810.md`.
+
+Authenticated sandbox evidence: `docs/rollout/READ_ONLY_SANDBOX_IDENTITY_ACCESS_VALIDATION_20260810.md`.
