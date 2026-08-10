@@ -1,0 +1,133 @@
+name: Conta Sandbox Identity Access Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Confirm this read-only sandbox identity and access validation
+        required: true
+        type: choice
+        options:
+          - VALIDATE_READ_ONLY_SANDBOX_IDENTITY_ACCESS
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-identity-access-validation
+  cancel-in-progress: false
+
+jobs:
+  validate-read-only-sandbox-access:
+    name: Validate read-only sandbox identity access
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+    steps:
+      - name: Verify requested operation and required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.operation }}" != "VALIDATE_READ_ONLY_SANDBOX_IDENTITY_ACCESS" ]]; then
+            echo "Unsupported operation." >&2
+            exit 1
+          fi
+
+          missing=()
+          for name in CONTA_API_KEY CONTA_ORG_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required environment secret: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          echo "Read-only validation request and required secret presence confirmed."
+
+      - name: Validate sandbox identity and organization access with GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          organizations_file="$RUNNER_TEMP/conta-organizations.json"
+          subscription_file="$RUNNER_TEMP/conta-subscription-plan.json"
+          cleanup() {
+            rm -f -- "$organizations_file" "$subscription_file"
+          }
+          trap cleanup EXIT
+
+          set +e
+          organizations_status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$organizations_file" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            'https://api.gateway.conta-sandbox.no/invoice/organizations')
+          organizations_curl_exit=$?
+          set -e
+
+          if [[ $organizations_curl_exit -ne 0 || "$organizations_status" != "200" ]]; then
+            echo "Sandbox organization-list GET failed (curl_exit=${organizations_curl_exit}, http_status=${organizations_status:-unavailable})." >&2
+            exit 1
+          fi
+
+          if ! jq -e 'type == "array"' "$organizations_file" >/dev/null; then
+            echo "Sandbox organization-list response did not match the expected array shape." >&2
+            exit 1
+          fi
+
+          accessible_organization_count=$(jq 'length' "$organizations_file")
+          if ! jq -e --arg org_id "$CONTA_ORG_ID" 'any(.[]; (.id | tostring) == $org_id)' "$organizations_file" >/dev/null; then
+            echo "The configured sandbox organization is not accessible to this API identity." >&2
+            exit 1
+          fi
+
+          set +e
+          subscription_status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$subscription_file" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "https://api.gateway.conta-sandbox.no/invoice/organizations/${CONTA_ORG_ID}/subscription-plan")
+          subscription_curl_exit=$?
+          set -e
+
+          if [[ $subscription_curl_exit -ne 0 || "$subscription_status" != "200" ]]; then
+            echo "Sandbox organization-scoped GET failed (curl_exit=${subscription_curl_exit}, http_status=${subscription_status:-unavailable})." >&2
+            exit 1
+          fi
+
+          {
+            echo "## Conta sandbox identity and access validation"
+            echo
+            echo "- Sandbox API authenticated: true."
+            echo "- Accessible organization count: ${accessible_organization_count}."
+            echo "- Configured organization accessible: true."
+            echo "- Organization-scoped endpoint accessible: true."
+            echo "- HTTP methods used: GET only."
+            echo "- Provider read call performed: true."
+            echo "- Provider write call performed: false."
+            echo "- Sandbox mutation performed: false."
+            echo "- Response body printed: false."
+            echo "- Secret or configured identity value printed: false."
+            echo "- Write enablement changed: false."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Read-only sandbox identity and organization access validation passed."
+          echo "No response body, secret, or configured identity value was printed."
