@@ -44,3 +44,5 @@ Before a payload may be materialized, all of the following are required:
 
 Until those gates close, `provider_call_allowed=false` and `sandbox_execution_allowed=false` remain controlling.
 
+The protected `Conta Sandbox Test Customer Validation` workflow provides the read-only existence gate. Its required `CONTA_SANDBOX_TEST_CUSTOMER_ID` value must be entered manually as a protected environment secret and must never be committed or printed.
+
