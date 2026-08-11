@@ -1,0 +1,125 @@
+name: Conta Sandbox Test Customer Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Confirm this read-only sandbox test-customer validation
+        required: true
+        type: choice
+        options:
+          - VALIDATE_READ_ONLY_SANDBOX_TEST_CUSTOMER
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-test-customer-validation
+  cancel-in-progress: false
+
+jobs:
+  validate-read-only-sandbox-test-customer:
+    name: Validate read-only sandbox test customer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+      CONTA_SANDBOX_TEST_CUSTOMER_ID: ${{ secrets.CONTA_SANDBOX_TEST_CUSTOMER_ID }}
+    steps:
+      - name: Verify operation and protected sandbox boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.operation }}" != "VALIDATE_READ_ONLY_SANDBOX_TEST_CUSTOMER" ]]; then
+            echo "Unsupported operation." >&2
+            exit 1
+          fi
+          if [[ "$CONTA_ENVIRONMENT" != "sandbox" ]]; then
+            echo "Protected environment is not configured for sandbox." >&2
+            exit 1
+          fi
+          if [[ "$CONTA_API_BASE_URL" != "https://api.gateway.conta-sandbox.no" ]]; then
+            echo "Protected environment does not use the approved Conta sandbox gateway." >&2
+            exit 1
+          fi
+
+          missing=()
+          for name in CONTA_API_KEY CONTA_ORG_ID CONTA_SANDBOX_TEST_CUSTOMER_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required environment secret: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+          if [[ ! "$CONTA_SANDBOX_TEST_CUSTOMER_ID" =~ ^[0-9]+$ ]]; then
+            echo "Protected sandbox test-customer ID has an invalid format." >&2
+            exit 1
+          fi
+
+          echo "Read-only sandbox test-customer request and protected boundary confirmed."
+
+      - name: Validate selected sandbox test customer with GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          customer_file="$RUNNER_TEMP/conta-sandbox-test-customer.json"
+          cleanup() {
+            rm -f -- "$customer_file"
+          }
+          trap cleanup EXIT
+
+          set +e
+          customer_status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$customer_file" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/customers/${CONTA_SANDBOX_TEST_CUSTOMER_ID}")
+          customer_curl_exit=$?
+          set -e
+
+          if [[ $customer_curl_exit -ne 0 || "$customer_status" != "200" ]]; then
+            echo "Sandbox test-customer GET failed (curl_exit=${customer_curl_exit}, http_status=${customer_status:-unavailable})." >&2
+            exit 1
+          fi
+
+          if ! jq -e --arg customer_id "$CONTA_SANDBOX_TEST_CUSTOMER_ID" \
+            'type == "object" and (.id | tostring) == $customer_id' \
+            "$customer_file" >/dev/null; then
+            echo "Sandbox test-customer response did not match the configured protected identifier." >&2
+            exit 1
+          fi
+
+          {
+            echo "## Conta sandbox test-customer validation"
+            echo
+            echo "- Sandbox environment enforced: true."
+            echo "- Sandbox API authenticated: true."
+            echo "- Configured organization accessible: true."
+            echo "- Selected sandbox test customer accessible: true."
+            echo "- Response identifier matched protected selection: true."
+            echo "- HTTP methods used: GET only."
+            echo "- Provider read call performed: true."
+            echo "- Provider write call performed: false."
+            echo "- Sandbox mutation performed: false."
+            echo "- Customer response body printed: false."
+            echo "- Secret or configured identity value printed: false."
+            echo "- Write enablement changed: false."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Read-only sandbox test-customer validation passed."
+          echo "No customer response body, secret, or configured identity value was printed."
+
