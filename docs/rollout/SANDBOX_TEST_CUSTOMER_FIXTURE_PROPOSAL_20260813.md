@@ -3,16 +3,20 @@
 ## Status
 
 ```text
-classification=PENDING_OPERATOR_APPROVAL
+classification=APPROVED_BY_OPERATOR_20260813
 fixture_designed=true
 fixture_created=false
 customer_id_assigned=false
-provider_call_authorized=false
-sandbox_mutation_authorized=false
+provider_call_authorized=true
+sandbox_mutation_authorized=true
 invoice_draft_authorized=false
 ```
 
-This is an offline fixture design only. It does not authorize creation of any Conta object.
+Operator authorization received at 11:44, 13.08.2026 Europe/Oslo:
+
+`Authorize creation of the proposed synthetic Conta sandbox test customer only.`
+
+This authorization is limited to creation of exactly one instance of the synthetic sandbox-only customer defined below. It does not authorize any invoice or invoice-draft creation, customer modification/deletion, production access, general write-tool enablement, or reuse of this authorization for another mutation.
 
 ## Purpose
 
@@ -24,11 +28,7 @@ Conta's official API help documents customer creation in the sandbox-capable API
 POST /invoice/organizations/{organizationId}/customers
 ```
 
-The official examples support an `INDIVIDUAL` customer with name, active status, address, invoice-delivery method and email address. No production/customer data is required for the fixture.
-
-## Proposed fixture
-
-Use one deliberately synthetic individual customer:
+## Authorized fixture
 
 ```text
 customerType=INDIVIDUAL
@@ -41,43 +41,40 @@ invoiceDeliveryMethod=EMAIL
 emailAddress=atlas-mcp-sandbox@example.com
 ```
 
-`example.com` is used only as synthetic test data. No real customer, employee, supplier or production contact information may be substituted.
+`example.com` is synthetic test data. No production/private customer, employee, supplier or real financial information may be substituted.
 
-## Creation method recommendation
+## Authorized execution method
 
-For this prerequisite fixture, prefer manual creation in the Conta sandbox web UI rather than introducing a new API write path solely to seed test data. This keeps fixture setup outside the MCP controlled invoice-draft execution path and makes the later MCP write test easier to attribute and audit.
+Use the existing protected GitHub environment `conta-sandbox-secrets`, with:
 
-Creation remains a sandbox mutation and therefore requires explicit operator authorization before it is performed.
+- exact sandbox environment enforcement;
+- exact sandbox gateway enforcement;
+- duplicate-safe GET preflight by exact fixture name;
+- at most one customer-create POST;
+- immediate GET readback of the returned customer identifier;
+- no response body, secret, organization identifier or customer identifier printed;
+- no automatic retry of the POST;
+- no customer update/delete;
+- no invoice or invoice-draft operation.
+
+The protected environment requires operator review before secrets are released to the job. That review is an additional control and does not expand this authorization.
 
 ## Post-creation handling
 
-After creation:
+After successful creation/readback:
 
-1. Do not create an invoice or invoice draft manually.
-2. Place the resulting numeric customer identifier only in the GitHub protected environment secret `CONTA_SANDBOX_TEST_CUSTOMER_ID` under `conta-sandbox-secrets`.
-3. Do not put that identifier, customer response, API key or organization identifier in Git, Drive, chat, issues or PR comments.
-4. Run the existing GET-only `Conta Sandbox Test Customer Validation` workflow.
-5. If that workflow succeeds, keep the synthetic customer unchanged while the invoice-draft test package is prepared and reviewed.
-6. Do not automatically delete the customer after testing. Any cleanup is a separate mutation requiring a separate operator decision.
+1. Do not create an invoice or invoice draft.
+2. Keep the synthetic customer unchanged while the next read-only binding gate is reconciled.
+3. Do not print or commit the customer identifier.
+4. Do not automatically delete the customer. Cleanup is a separate mutation requiring a separate operator decision.
 
-## Approval boundary
-
-An operator approval for this fixture must authorize only creation of this one synthetic sandbox customer. It must not authorize:
-
-- invoice-draft creation;
-- invoice creation or sending;
-- customer update/delete;
-- write-tool enablement;
-- production access;
-- reuse of the authorization for another payload or object.
-
-Until explicit approval is granted:
+## Controlling boundary
 
 ```text
-SANDBOX_TEST_CUSTOMER_FIXTURE_APPROVED=false
-SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=false
+SANDBOX_TEST_CUSTOMER_FIXTURE_APPROVED=true
+SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=true
+INVOICE_DRAFT_AUTHORIZED=false
 WRITE_TOOLS_ENABLED=false
 RUNTIME_WRITE_BLOCKED=true
-SANDBOX_EXECUTION_ALLOWED=false
 PRODUCTION_EXECUTION_ALLOWED=false
 ```
