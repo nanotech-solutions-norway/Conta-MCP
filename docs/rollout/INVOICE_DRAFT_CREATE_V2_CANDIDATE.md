@@ -21,10 +21,24 @@ path=/invoice/organizations/{opContextOrgId}/invoice-drafts
 
 The route and operation were independently validated against the current official production and sandbox OpenAPI documents on 2026-08-10. Runtime create entitlement and behavior remain unvalidated.
 
+## 13.08.2026 sandbox fixture prerequisite
+
+The operator reported that the configured Conta sandbox currently contains no test customers and no test invoices. Therefore the controlled invoice-draft candidate cannot proceed directly to test-payload materialization. One synthetic sandbox-only test customer must first be separately designed, approved, created and validated through the GET-only customer workflow.
+
+```text
+SANDBOX_TEST_CUSTOMER_FIXTURE_PRESENT=false
+SANDBOX_TEST_CUSTOMER_FIXTURE_APPROVED=false
+SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=false
+```
+
+Customer-fixture creation is a separate mutation and must not be implicitly authorized by any later invoice-draft approval.
+
 ## Required authorization packet
 
 - Test-company identity binding: `VERIFIED_SANDBOX_RUNTIME_20260810`; the real identifier remains server-side only.
 - Allowed organization ID binding: `VERIFIED_SERVER_SIDE_RUNTIME_20260810`; the real ID must never be committed.
+- Synthetic sandbox test-customer fixture: `PENDING_OPERATOR_APPROVAL`; see `SANDBOX_TEST_CUSTOMER_FIXTURE_PROPOSAL_20260813.md`.
+- GET-only sandbox test-customer binding validation: `BLOCKED_MISSING_FIXTURE`.
 - Exact provider route and operation ID: `VERIFIED_OFFICIAL_DOCS_20260810`.
 - Request schema closure hash: `VERIFIED_OFFICIAL_DOCS_20260811`; `e9bd13fc868d2e549576c39df6923f0eac5295d482a7f55f4ee75b8f9df545a4`.
 - Success-response schema closure hash: `VERIFIED_OFFICIAL_DOCS_20260811`; `fb8282b847343172e6b994453449755cceb5657bb0e69c66a8bd1ac0aed3032a`.
@@ -42,6 +56,10 @@ The payload remains `PLACEHOLDER_ONLY_PENDING_OPERATOR_VALIDATION`; see `SANDBOX
 ## Mandatory sequence for the later sandbox gate
 
 ```text
+synthetic-customer fixture approval
+separate fixture creation authorization
+fixture creation
+GET-only fixture validation
 pre-read
 preview
 approval-envelope creation
