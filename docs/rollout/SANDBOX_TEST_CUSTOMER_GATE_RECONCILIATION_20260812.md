@@ -1,66 +1,85 @@
-# Conta MCP Sandbox Fixture Gate Reconciliation — 11:51, 13.08.2026
+# Conta MCP Sandbox Fixture Gate Reconciliation — 17:27, 13.08.2026
 
 ## Classification
 
 ```text
-READ_ONLY_SANDBOX_TEST_CUSTOMER_GATE=BLOCKED_PENDING_FIXTURE_EXECUTION
-BLOCKER_CLASS=SANDBOX_HAS_NO_TEST_CUSTOMER
+READ_ONLY_SANDBOX_TEST_CUSTOMER_GATE=VALIDATED
+BLOCKER_CLASS=NONE
 SANDBOX_TEST_INVOICES_PRESENT=false
 SOURCE_OF_EMPTY_SANDBOX_OBSERVATION=OPERATOR_REPORT_20260813
 SANDBOX_TEST_CUSTOMER_FIXTURE_DESIGNED=true
 SANDBOX_TEST_CUSTOMER_FIXTURE_APPROVED=true
-SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=true
-FIXTURE_CREATED=false
+SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZATION_CONSUMED=true
+FIXTURE_CREATED=true
+FIXTURE_GET_READBACK_VALIDATED=true
 INVOICE_DRAFT_AUTHORIZED=false
 WRITE_ENABLEMENT_CHANGED=false
 PRODUCTION_WRITE_APPROVED=false
 ```
 
-The operator reported on 13.08.2026 that the configured Conta sandbox environment contains no test customers and no test invoices. The earlier HTTP `404` from the GET-only test-customer workflow is reconciled as a missing fixture prerequisite.
+The operator reported on 13.08.2026 that the configured Conta sandbox environment contained no test customers and no test invoices. That report remains operator-supplied context rather than an independently enumerated inventory statement.
 
-At 11:44, 13.08.2026 Europe/Oslo, the operator explicitly authorized:
+The synthetic fixture authorization was limited to exactly one customer-create POST for the fixture defined in `SANDBOX_TEST_CUSTOMER_FIXTURE_PROPOSAL_20260813.md`, after exact-name duplicate preflight, with no invoice, invoice-draft, customer update/delete, production access or general write enablement.
 
-`Authorize creation of the proposed synthetic Conta sandbox test customer only.`
+## Runtime evidence
 
-This authorization is bound to the exact fixture and control conditions in `SANDBOX_TEST_CUSTOMER_FIXTURE_PROPOSAL_20260813.md`. It authorizes at most one customer-create POST in the Conta sandbox after an exact-name duplicate preflight. It does not authorize an invoice, invoice draft, customer update/delete, production access or general write enablement.
-
-## Execution control
-
-The execution workflow is:
+The protected sandbox identity gate was revalidated after correcting the sandbox identity binding. The successful GET-only validation used the protected environment and confirmed:
 
 ```text
-.github/workflows/conta-sandbox-synthetic-customer-create-once.yml
+WORKFLOW_RUN=31418133692
+JOB_ID=94497733654
+SANDBOX_API_AUTHENTICATED=true
+CONFIGURED_ORGANIZATION_ACCESSIBLE=true
+ORGANIZATION_SCOPED_READ_ACCESS=true
+HTTP_METHODS_USED=GET_ONLY
+PROVIDER_WRITE_CALL_PERFORMED=false
+SANDBOX_MUTATION_PERFORMED=false
 ```
 
-It is designed to run only when the workflow file is pushed to protected `main`, and it uses protected environment `conta-sandbox-secrets`. The environment requires a reviewer approval before protected variables/secrets are released to the job.
-
-Mandatory runtime controls:
+The authorized fixture workflow then completed successfully:
 
 ```text
-CONTA_ENVIRONMENT=sandbox
-CONTA_API_BASE_URL=https://api.gateway.conta-sandbox.no
-EXACT_NAME_PREFLIGHT_REQUIRED=true
-MAXIMUM_CUSTOMER_CREATE_POSTS=1
-AUTOMATIC_POST_RETRY=false
-GET_READBACK_REQUIRED=true
-CUSTOMER_ID_PRINTED=false
+WORKFLOW_RUN=31688667208
+JOB_ID=94498901205
+EXACT_NAME_DUPLICATE_PREFLIGHT=PASSED_ZERO_MATCHES
+CUSTOMER_CREATE_POSTS_ISSUED=1
+CREATE_RESPONSE_CONTAINED_NUMERIC_ID=true
+CUSTOMER_IDENTIFIER_PRINTED=false
 PROVIDER_RESPONSE_BODY_PRINTED=false
-INVOICE_OPERATION_ALLOWED=false
-INVOICE_DRAFT_OPERATION_ALLOWED=false
-CUSTOMER_UPDATE_DELETE_ALLOWED=false
-PRODUCTION_ACCESS_ALLOWED=false
+GET_READBACK_REQUIRED=true
+GET_READBACK_VALIDATED=true
+AUTHORIZED_FIXTURE_PRESENT=true
+INVOICE_OPERATION_PERFORMED=false
+INVOICE_DRAFT_OPERATION_PERFORMED=false
+CUSTOMER_UPDATE_DELETE_PERFORMED=false
+PRODUCTION_ACCESS_PERFORMED=false
 ```
 
-## Validation state before merge
+The customer identifier remains protected runtime data and is not committed to the repository. The sandbox organization identifier likewise remains protected configuration and is not recorded here.
 
-All required pull-request checks passed against the authorized execution package:
+## Authorized fixture validated
+
+The GET readback matched the authorized fixture identity and required state:
 
 ```text
-DEPENDENCY_REVIEW=PASSED
-SECURITY_BASELINE=PASSED
-REPOSITORY_SECURITY_BASELINE=PASSED
-CONTROLLED_WRITE_FOUNDATION_VALIDATION=PASSED
-CODEQL=PASSED
+customerType=INDIVIDUAL
+isActive=true
+name=Atlas MCP Sandbox Test Customer
+```
+
+The workflow also used the approved synthetic address, delivery method and `example.com` email in the create payload. No real customer, employee, supplier or financial data was used.
+
+## Authorization state after execution
+
+The one-customer creation authorization has been consumed. It must not be reused for another customer mutation.
+
+```text
+SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=false
+SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZATION_CONSUMED=true
+INVOICE_DRAFT_AUTHORIZED=false
+WRITE_TOOLS_ENABLED=false
+RUNTIME_WRITE_BLOCKED=true
+PRODUCTION_EXECUTION_ALLOWED=false
 ```
 
 ## Previously closed evidence retained
@@ -78,6 +97,6 @@ RESPONSE_SCHEMA_HASH=VERIFIED_OFFICIAL_DOCS_20260811
 
 ## Next gate
 
-Merge the reviewed fixture authorization/execution package to `main`. The protected-environment deployment must then receive operator reviewer approval. If the one-shot job succeeds, record creation/readback evidence and continue only to the GET-only fixture binding/reconciliation gate.
+The synthetic sandbox customer prerequisite is closed. The next work may prepare the invoice-draft authorization packet only: finalize operator-selected payload parameters, review the rectification procedure, define the maximum-one-call execution window, materialize the protected payload/hash, and perform preview/approval steps.
 
-All invoice-draft and production execution gates remain closed.
+No invoice-draft provider mutation is authorized by this reconciliation.
