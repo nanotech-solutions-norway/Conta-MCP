@@ -1,4 +1,4 @@
-# Conta MCP Sandbox Fixture Gate Reconciliation — 11:44, 13.08.2026
+# Conta MCP Sandbox Fixture Gate Reconciliation — 11:50, 13.08.2026
 
 ## Classification
 
@@ -16,7 +16,7 @@ WRITE_ENABLEMENT_CHANGED=false
 PRODUCTION_WRITE_APPROVED=false
 ```
 
-The operator reported on 13.08.2026 that the configured Conta sandbox environment contains no test customers and no test invoices. The earlier HTTP `404` from the GET-only test-customer workflow is therefore reconciled as a missing fixture prerequisite.
+The operator reported on 13.08.2026 that the configured Conta sandbox environment contains no test customers and no test invoices. The earlier HTTP `404` from the GET-only test-customer workflow is reconciled as a missing fixture prerequisite.
 
 At 11:44, 13.08.2026 Europe/Oslo, the operator explicitly authorized:
 
@@ -49,6 +49,18 @@ INVOICE_OPERATION_ALLOWED=false
 INVOICE_DRAFT_OPERATION_ALLOWED=false
 CUSTOMER_UPDATE_DELETE_ALLOWED=false
 PRODUCTION_ACCESS_ALLOWED=false
+```
+
+## Validation state before merge
+
+All required pull-request checks passed against the authorized execution package:
+
+```text
+DEPENDENCY_REVIEW=PASSED
+SECURITY_BASELINE=PASSED
+REPOSITORY_SECURITY_BASELINE=PASSED
+CONTROLLED_WRITE_FOUNDATION_VALIDATION=PASSED
+CODEQL=PASSED
 ```
 
 ## Previously closed evidence retained
