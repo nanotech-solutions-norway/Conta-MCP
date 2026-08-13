@@ -17,12 +17,17 @@
 | Provider access model | VERIFIED_SANDBOX_RUNTIME_20260810 | Protected GET-only run `31418133692` authenticated the sandbox API key and confirmed organization-scoped subscription-endpoint access; no response body or identity value recorded |
 | Provider-native idempotency | PENDING_REVIEW | Generic idempotency exception exists, but no create-operation header, parameter, or guarantee is documented |
 | Sandbox/test-company identity | VERIFIED_SANDBOX_RUNTIME_20260810 | Configured sandbox organization appeared in the authenticated identity's accessible organization list; real ID remains server-side only |
+| Sandbox test-customer inventory | OPERATOR_REPORTED_EMPTY_20260813 | Operator reports no test customers in configured Conta sandbox; customer GET `404` is reconciled as missing fixture prerequisite |
+| Sandbox test-invoice inventory | OPERATOR_REPORTED_EMPTY_20260813 | Operator reports no test invoices in configured Conta sandbox |
+| Synthetic sandbox test-customer fixture | APPROVED_BY_OPERATOR_20260813 | Exact fixture defined in `SANDBOX_TEST_CUSTOMER_FIXTURE_PROPOSAL_20260813.md` |
+| Sandbox test-customer create authorization | GRANTED_ONCE_20260813 | Exactly one synthetic sandbox customer creation authorized; duplicate-safe preflight and GET readback mandatory |
+| Fixture creation result | PENDING_PROTECTED_ENVIRONMENT_EXECUTION | No customer creation result recorded yet |
 | Create response identifier | VERIFIED_SCHEMA_OPTIONAL | HTTP 200 model contains integer `id`; it is not declared top-level required |
 | Readback route | VERIFIED_OFFICIAL_DOCS_20260810 | `GET /invoice/organizations/{opContextOrgId}/invoice-drafts/{id}`; operation `v1ReadInvoiceDraft` |
 | Rectification procedure | DRAFTED_PENDING_OPERATOR_APPROVAL | Conservative draft preserves any unsent sandbox object, blocks automatic retry/delete and requires separate cleanup authorization |
-| One-call operator authorization | NOT_GRANTED | Separate explicit authorization required |
+| One-call invoice-draft operator authorization | NOT_GRANTED | Separate explicit payload-bound authorization required after fixture validation |
 
-No unresolved provider item is interpreted as approval.
+No unresolved provider item is interpreted as approval beyond the exact one-time synthetic customer fixture authorization recorded above.
 
 Detailed refresh evidence: `docs/rollout/CURRENT_PROVIDER_SCHEMA_SANDBOX_EVIDENCE_REFRESH_20260810.md`.
 
@@ -31,3 +36,5 @@ Authenticated sandbox evidence: `docs/rollout/READ_ONLY_SANDBOX_IDENTITY_ACCESS_
 Post-validation reconciliation: `docs/rollout/POST_READ_ONLY_SANDBOX_RECONCILIATION_20260811.md`.
 
 Canonical schema hash evidence: `docs/rollout/CANONICAL_INVOICE_DRAFT_SCHEMA_HASHES_20260811.md`.
+
+Synthetic fixture authorization: `docs/rollout/SANDBOX_TEST_CUSTOMER_FIXTURE_PROPOSAL_20260813.md`.
