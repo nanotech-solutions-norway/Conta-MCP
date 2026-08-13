@@ -88,10 +88,10 @@ The rollout now requires a sandbox fixture prerequisite before test-customer val
 
 ### Gate A — approve a synthetic sandbox test-customer fixture
 
-Operator approval is required for creation of exactly one sandbox-only synthetic customer. The fixture must contain no production customer data, no private customer data and no real financial information. The exact fixture values and retention/cleanup policy must be reviewed before creation.
+Operator approval is required for creation of exactly one sandbox-only synthetic customer. The fixture must contain no production customer data, no private customer data and no real financial information. The proposed fixture is defined in `SANDBOX_TEST_CUSTOMER_FIXTURE_PROPOSAL_20260813.md`.
 
 ```text
-SANDBOX_TEST_CUSTOMER_FIXTURE_DESIGNED=false
+SANDBOX_TEST_CUSTOMER_FIXTURE_DESIGNED=true
 SANDBOX_TEST_CUSTOMER_FIXTURE_APPROVED=false
 SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=false
 ```
@@ -121,4 +121,4 @@ PRODUCTION_EXECUTION_ALLOWED=false
 SANDBOX_TEST_CUSTOMER_CREATE_AUTHORIZED=false
 ```
 
-No progress credit is granted for the failed customer validation. The next closable process is offline design and operator approval of one synthetic sandbox test-customer fixture. No Conta mutation is authorized by this reconciliation.
+No progress credit is granted for the failed customer validation. The next closable process is operator approval of the already-designed synthetic sandbox test-customer fixture. No Conta mutation is authorized by this reconciliation.
