@@ -1,0 +1,109 @@
+name: Conta Sandbox Organization ID Discovery Once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/conta-sandbox-org-id-discovery-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-org-id-discovery-once
+  cancel-in-progress: false
+
+jobs:
+  discover-sandbox-org-id:
+    name: Discover sandbox organization ID with GET only
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+    steps:
+      - name: Verify protected sandbox boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$CONTA_ENVIRONMENT" != "sandbox" ]]; then
+            echo "Protected environment is not sandbox." >&2
+            exit 1
+          fi
+          if [[ "$CONTA_API_BASE_URL" != "https://api.gateway.conta-sandbox.no" ]]; then
+            echo "Protected environment does not use the approved Conta sandbox gateway." >&2
+            exit 1
+          fi
+          if [[ -z "${CONTA_API_KEY:-}" ]]; then
+            echo "Missing protected Conta sandbox API key." >&2
+            exit 1
+          fi
+          echo "Protected Conta sandbox boundary verified."
+
+      - name: Retrieve and encrypt accessible organization IDs with GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          response="$RUNNER_TEMP/conta-organizations.json"
+          ids="$RUNNER_TEMP/conta-org-ids.json"
+          pubkey="$RUNNER_TEMP/conta-org-id-public.pem"
+          cipher="$RUNNER_TEMP/conta-org-ids.bin"
+          cleanup() {
+            rm -f -- "$response" "$ids" "$pubkey" "$cipher"
+          }
+          trap cleanup EXIT
+
+          status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations")
+
+          if [[ "$status" != "200" ]]; then
+            echo "Sandbox organization-list GET failed (http_status=${status:-unavailable})." >&2
+            exit 1
+          fi
+
+          if ! jq -e 'type == "array" and length > 0 and all(.[]; (.id | type) == "number")' "$response" >/dev/null; then
+            echo "Sandbox organization-list response did not contain the expected numeric organization IDs." >&2
+            exit 1
+          fi
+
+          jq -c '[.[].id]' "$response" > "$ids"
+
+          cat > "$pubkey" <<'PEM'
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvl6kQMyH3WPcpxtQzS26
+          PtNPRezzmlFfeTsSRHN7C95nw3mpWf8cIxsC5LHEUHRUQaD0wk5q7UOVN++PYj2V
+          mAADaRhE52+Y9a537YEfTXe099U+OGUtxwwIj4gt6Cs98m7gH7Tm9O5tynEWnrOI
+          eyLaLJ3IBJc72dWSXK287HkF88q2NvUjF2UNF2ZdFkZ2Mnn+jpZlk12FpeTN4zLC
+          7lX0NHW4dDdJC0ODwdvaKmj7HBzLeCaRgKELwxej4YjPsUpNaCDAiR52goPra8mv
+          JM5QULY7a1tc1wQKHsyBSGd8SCYvb1ppo0adxG4W1dP8dIWvz4TrG5U2ALA66IEo
+          gQIDAQAB
+          -----END PUBLIC KEY-----
+          PEM
+
+          openssl pkeyutl \
+            -encrypt \
+            -pubin \
+            -inkey "$pubkey" \
+            -pkeyopt rsa_padding_mode:oaep \
+            -in "$ids" \
+            -out "$cipher"
+
+          encrypted=$(base64 -w0 "$cipher")
+          echo "ENCRYPTED_SANDBOX_ORGANIZATION_IDS=${encrypted}"
+          echo "Accessible sandbox organization IDs retrieved with GET only and encrypted before log output."
+          echo "Provider write call performed: false."
+          echo "Sandbox mutation performed: false."
