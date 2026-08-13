@@ -62,6 +62,7 @@ function assertZeroDraftPrestate(mixed $body): void
     if (!is_array($body)) {
         throw new RuntimeException('invoice_draft_prestate_not_json');
     }
+
     if (array_is_list($body)) {
         if (count($body) !== 0) {
             throw new RuntimeException('invoice_draft_prestate_not_empty');
@@ -69,6 +70,28 @@ function assertZeroDraftPrestate(mixed $body): void
         return;
     }
 
+    // Current Conta OpenAPI contract for v1SearchInvoiceDrafts:
+    // RouteV1QueryResultInvoiceListExtendedInfoModel { hits: array, hitCount: integer, ... }.
+    if (array_key_exists('hits', $body) || array_key_exists('hitCount', $body)) {
+        if (!array_key_exists('hits', $body) || !is_array($body['hits'])) {
+            throw new RuntimeException('invoice_draft_prestate_unrecognized');
+        }
+        if (!array_key_exists('hitCount', $body) || !is_numeric($body['hitCount'])) {
+            throw new RuntimeException('invoice_draft_prestate_unrecognized');
+        }
+
+        $hitCount = (int) $body['hitCount'];
+        $listedCount = count($body['hits']);
+        if ($hitCount !== $listedCount) {
+            throw new RuntimeException('invoice_draft_prestate_inconsistent');
+        }
+        if ($hitCount !== 0 || $listedCount !== 0) {
+            throw new RuntimeException('invoice_draft_prestate_not_empty');
+        }
+        return;
+    }
+
+    // Conservative compatibility fallback for any previously observed list envelope.
     $recognized = false;
     foreach (['totalCount', 'totalElements', 'total', 'count'] as $key) {
         if (array_key_exists($key, $body) && is_numeric($body[$key])) {
@@ -372,6 +395,14 @@ if ($draftId === null && $ledgerReserved) {
         $postBody = $post['body'];
         if (array_is_list($postBody)) {
             $postStateObserved = count($postBody) > 0;
+        } elseif (array_key_exists('hits', $postBody) || array_key_exists('hitCount', $postBody)) {
+            if (array_key_exists('hits', $postBody) && is_array($postBody['hits']) && array_key_exists('hitCount', $postBody) && is_numeric($postBody['hitCount'])) {
+                $hitCount = (int) $postBody['hitCount'];
+                $listedCount = count($postBody['hits']);
+                if ($hitCount === $listedCount) {
+                    $postStateObserved = $hitCount > 0;
+                }
+            }
         } else {
             foreach (['totalCount', 'totalElements', 'total', 'count'] as $key) {
                 if (array_key_exists($key, $postBody) && is_numeric($postBody[$key])) {
