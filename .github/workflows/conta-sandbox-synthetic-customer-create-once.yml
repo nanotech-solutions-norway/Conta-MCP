@@ -1,0 +1,245 @@
+name: Conta Sandbox Synthetic Customer Create Once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/conta-sandbox-synthetic-customer-create-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-synthetic-customer-create-once
+  cancel-in-progress: false
+
+jobs:
+  create-synthetic-customer-once:
+    name: Create authorized synthetic sandbox customer once
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+      FIXTURE_NAME: Atlas MCP Sandbox Test Customer
+    steps:
+      - name: Verify protected sandbox boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$CONTA_ENVIRONMENT" != "sandbox" ]]; then
+            echo "Protected environment is not sandbox." >&2
+            exit 1
+          fi
+
+          if [[ "$CONTA_API_BASE_URL" != "https://api.gateway.conta-sandbox.no" ]]; then
+            echo "Protected environment does not use the approved Conta sandbox gateway." >&2
+            exit 1
+          fi
+
+          missing=()
+          for name in CONTA_API_KEY CONTA_ORG_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required protected value: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          if [[ ! "$CONTA_ORG_ID" =~ ^[0-9]+$ ]]; then
+            echo "Protected organization identifier has an invalid format." >&2
+            exit 1
+          fi
+
+          echo "Protected Conta sandbox boundary verified."
+
+      - name: Preflight exact synthetic customer name
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          response="$RUNNER_TEMP/conta-customer-search.json"
+          trap 'rm -f -- "$response"' EXIT
+
+          set +e
+          status=$(curl \
+            --silent \
+            --show-error \
+            --get \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --data-urlencode "q=${FIXTURE_NAME}" \
+            --data-urlencode 'hits=100' \
+            --data-urlencode 'page=0' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/customers")
+          curl_exit=$?
+          set -e
+
+          if [[ $curl_exit -ne 0 || "$status" != "200" ]]; then
+            echo "Sandbox customer preflight failed (curl_exit=${curl_exit}, http_status=${status:-unavailable})." >&2
+            exit 1
+          fi
+
+          matches=$(jq -c --arg name "$FIXTURE_NAME" '[.. | objects | select(.name? == $name and .id? != null)] | unique_by(.id)' "$response")
+          count=$(jq 'length' <<<"$matches")
+
+          if [[ "$count" -gt 1 ]]; then
+            echo "Duplicate exact-name sandbox fixtures already exist; refusing mutation." >&2
+            exit 1
+          fi
+
+          if [[ "$count" -eq 1 ]]; then
+            customer_id=$(jq -r '.[0].id' <<<"$matches")
+            if [[ ! "$customer_id" =~ ^[0-9]+$ ]]; then
+              echo "Existing fixture identifier has invalid format." >&2
+              exit 1
+            fi
+            echo "::add-mask::$customer_id"
+            echo "fixture_exists=true" >> "$GITHUB_OUTPUT"
+            echo "customer_id=$customer_id" >> "$GITHUB_OUTPUT"
+            echo "Exact synthetic sandbox fixture already exists; no POST will be issued."
+          else
+            echo "fixture_exists=false" >> "$GITHUB_OUTPUT"
+            echo "No exact synthetic sandbox fixture exists; one create call is permitted."
+          fi
+
+      - name: Create exactly one authorized synthetic sandbox customer
+        id: create
+        if: steps.preflight.outputs.fixture_exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          payload="$RUNNER_TEMP/conta-synthetic-customer-payload.json"
+          response="$RUNNER_TEMP/conta-synthetic-customer-response.json"
+          cleanup() {
+            rm -f -- "$payload" "$response"
+          }
+          trap cleanup EXIT
+
+          jq -n \
+            --arg name "$FIXTURE_NAME" \
+            '{
+              customerType: "INDIVIDUAL",
+              isActive: true,
+              name: $name,
+              customerAddressLine1: "Testveien 1",
+              customerAddressPostcode: "0150",
+              customerAddressCity: "Oslo",
+              invoiceDeliveryMethod: "EMAIL",
+              emailAddress: "atlas-mcp-sandbox@example.com"
+            }' > "$payload"
+
+          set +e
+          status=$(curl \
+            --silent \
+            --show-error \
+            --request POST \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$payload" \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/customers")
+          curl_exit=$?
+          set -e
+
+          if [[ $curl_exit -ne 0 || "$status" != "200" ]]; then
+            echo "Authorized sandbox customer creation failed (curl_exit=${curl_exit}, http_status=${status:-unavailable}). No automatic retry will occur." >&2
+            exit 1
+          fi
+
+          customer_id=$(jq -r '.id // empty' "$response")
+          if [[ ! "$customer_id" =~ ^[0-9]+$ ]]; then
+            echo "Create response did not contain a valid numeric customer identifier. No automatic retry will occur." >&2
+            exit 1
+          fi
+
+          echo "::add-mask::$customer_id"
+          echo "customer_id=$customer_id" >> "$GITHUB_OUTPUT"
+          echo "Exactly one authorized synthetic sandbox customer was created."
+          echo "Create response body and identifier were not printed."
+
+      - name: Read back fixture with GET only
+        shell: bash
+        env:
+          EXISTING_CUSTOMER_ID: ${{ steps.preflight.outputs.customer_id }}
+          CREATED_CUSTOMER_ID: ${{ steps.create.outputs.customer_id }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          customer_id="${CREATED_CUSTOMER_ID:-${EXISTING_CUSTOMER_ID:-}}"
+          if [[ ! "$customer_id" =~ ^[0-9]+$ ]]; then
+            echo "No valid customer identifier is available for readback." >&2
+            exit 1
+          fi
+          echo "::add-mask::$customer_id"
+
+          response="$RUNNER_TEMP/conta-synthetic-customer-readback.json"
+          trap 'rm -f -- "$response"' EXIT
+
+          set +e
+          status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/customers/${customer_id}")
+          curl_exit=$?
+          set -e
+
+          if [[ $curl_exit -ne 0 || "$status" != "200" ]]; then
+            echo "Synthetic customer readback failed (curl_exit=${curl_exit}, http_status=${status:-unavailable})." >&2
+            exit 1
+          fi
+
+          if ! jq -e \
+            --arg name "$FIXTURE_NAME" \
+            --arg id "$customer_id" \
+            'type == "object" and (.id | tostring) == $id and .name == $name and .customerType == "INDIVIDUAL" and .isActive == true' \
+            "$response" >/dev/null; then
+            echo "Synthetic customer readback did not match the authorized fixture identity." >&2
+            exit 1
+          fi
+
+          {
+            echo "## Conta synthetic sandbox fixture result"
+            echo
+            echo "- Sandbox environment enforced: true."
+            echo "- Exact-name duplicate preflight performed: true."
+            echo "- Authorized customer fixture present: true."
+            echo "- At most one POST issued: true."
+            echo "- GET readback verified: true."
+            echo "- Customer identifier printed: false."
+            echo "- Provider response body printed: false."
+            echo "- Invoice operation performed: false."
+            echo "- Invoice-draft operation performed: false."
+            echo "- Customer update/delete performed: false."
+            echo "- Production access performed: false."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Synthetic sandbox customer fixture verified by GET readback."
