@@ -1,0 +1,132 @@
+name: Conta Sandbox Invoice Draft Preview Packet
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/conta-sandbox-invoice-draft-preview-packet.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-invoice-draft-preview-packet
+  cancel-in-progress: false
+
+jobs:
+  build-preview-packet:
+    name: Build protected sandbox invoice-draft preview packet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+      FIXTURE_NAME: Atlas MCP Sandbox Test Customer
+      TEST_LINE_DESCRIPTION: Atlas MCP Sandbox Invoice Draft Validation
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+
+      - name: Verify protected sandbox boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CONTA_ENVIRONMENT" == "sandbox" ]] || { echo "Protected environment is not sandbox." >&2; exit 1; }
+          [[ "$CONTA_API_BASE_URL" == "https://api.gateway.conta-sandbox.no" ]] || { echo "Unexpected Conta base URL." >&2; exit 1; }
+          [[ -n "${CONTA_API_KEY:-}" ]] || { echo "Missing protected Conta API key." >&2; exit 1; }
+          [[ "$CONTA_ORG_ID" =~ ^[0-9]+$ ]] || { echo "Invalid protected organization identifier." >&2; exit 1; }
+          echo "Protected Conta sandbox boundary verified."
+
+      - name: Resolve and validate exact synthetic fixture with GET only
+        id: fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          search_file="$RUNNER_TEMP/conta-preview-customer-search.json"
+          readback_file="$RUNNER_TEMP/conta-preview-customer-readback.json"
+          trap 'rm -f -- "$search_file" "$readback_file"' EXIT
+
+          status=$(curl --silent --show-error --get \
+            --output "$search_file" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --data-urlencode "q=${FIXTURE_NAME}" --data-urlencode 'hits=100' --data-urlencode 'page=0' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/customers")
+          [[ "$status" == "200" ]] || { echo "Synthetic fixture search GET failed (http_status=${status:-unavailable})." >&2; exit 1; }
+
+          matches=$(jq -c --arg name "$FIXTURE_NAME" '[.. | objects | select(.name? == $name and .id? != null)] | unique_by(.id)' "$search_file")
+          count=$(jq 'length' <<<"$matches")
+          [[ "$count" -eq 1 ]] || { echo "Expected exactly one exact-name synthetic fixture; found ${count}." >&2; exit 1; }
+
+          customer_id=$(jq -r '.[0].id' <<<"$matches")
+          [[ "$customer_id" =~ ^[0-9]+$ ]] || { echo "Invalid resolved fixture identifier." >&2; exit 1; }
+          echo "::add-mask::$customer_id"
+
+          status=$(curl --silent --show-error --request GET \
+            --output "$readback_file" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/customers/${customer_id}")
+          [[ "$status" == "200" ]] || { echo "Synthetic fixture readback GET failed (http_status=${status:-unavailable})." >&2; exit 1; }
+
+          jq -e --arg name "$FIXTURE_NAME" --arg id "$customer_id" \
+            'type == "object" and (.id | tostring) == $id and .name == $name and .customerType == "INDIVIDUAL" and .isActive == true' \
+            "$readback_file" >/dev/null || { echo "Synthetic fixture identity verification failed." >&2; exit 1; }
+
+          echo "customer_id=$customer_id" >> "$GITHUB_OUTPUT"
+          echo "Exact synthetic fixture resolved and verified using GET only."
+
+      - name: Materialize proposal locally and calculate canonical payload hash
+        id: preview
+        shell: bash
+        env:
+          CUSTOMER_ID: ${{ steps.fixture.outputs.customer_id }}
+        run: |
+          set -euo pipefail
+          umask 077
+          payload="$RUNNER_TEMP/conta-invoice-draft-preview-payload.json"
+          trap 'rm -f -- "$payload"' EXIT
+          [[ "$CUSTOMER_ID" =~ ^[0-9]+$ ]] || { echo "Invalid protected customer identifier." >&2; exit 1; }
+          echo "::add-mask::$CUSTOMER_ID"
+
+          jq -n --arg description "$TEST_LINE_DESCRIPTION" --argjson customerId "$CUSTOMER_ID" \
+            '{registrationSource:"CONTA",invoiceDraftLines:[{description:$description,price:1.0,quantity:1,discount:0,vatCode:"no.vat"}],type:"NORMAL",customerId:$customerId,invoiceLanguage:"NO",invoiceCurrency:"NOK"}' \
+            > "$payload"
+
+          jq -e --arg id "$CUSTOMER_ID" \
+            'type=="object" and .registrationSource=="CONTA" and .type=="NORMAL" and (.customerId|tostring)==$id and .invoiceLanguage=="NO" and .invoiceCurrency=="NOK" and (.invoiceDraftLines|length)==1 and .invoiceDraftLines[0].description=="Atlas MCP Sandbox Invoice Draft Validation" and .invoiceDraftLines[0].price==1 and .invoiceDraftLines[0].quantity==1 and .invoiceDraftLines[0].discount==0 and .invoiceDraftLines[0].vatCode=="no.vat"' \
+            "$payload" >/dev/null || { echo "Local proposal validation failed." >&2; exit 1; }
+
+          payload_hash=$(php -r 'require "app/InvoiceDraftPreview.php"; $p=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR); echo InvoiceDraftPreview::payloadHash($p);' "$payload")
+          [[ "$payload_hash" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid canonical payload hash." >&2; exit 1; }
+
+          {
+            echo "## Conta sandbox invoice-draft preview packet"
+            echo
+            echo "- Sandbox environment enforced: true."
+            echo "- Synthetic fixture exact-name resolution: passed."
+            echo "- Synthetic fixture GET readback: passed."
+            echo "- Customer identifier printed: false."
+            echo "- Registration source: CONTA."
+            echo "- Invoice type: NORMAL."
+            echo "- Language: NO."
+            echo "- Currency: NOK."
+            echo "- Line count: 1."
+            echo "- Synthetic line amount ex VAT: NOK 1.00."
+            echo "- Quantity: 1."
+            echo "- Discount: 0%."
+            echo "- VAT code: no.vat."
+            echo "- Payload SHA-256: ${payload_hash}."
+            echo "- Provider HTTP methods used: GET only."
+            echo "- Provider mutation performed: false."
+            echo "- Runtime write gates changed: false."
+            echo "- Execution authorization granted: false."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Protected proposal materialized locally and hashed; no provider mutation performed."
