@@ -1,0 +1,52 @@
+name: Conta Sandbox Invoice Draft One Call
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/conta-sandbox-invoice-draft-one-call.yml'
+      - '.github/scripts/conta-sandbox-invoice-draft-one-call.php'
+      - 'docs/rollout/SANDBOX_INVOICE_DRAFT_ONE_CALL_AUTHORIZATION_20260813.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-invoice-draft-one-call
+  cancel-in-progress: false
+
+jobs:
+  execute-authorized-one-call:
+    name: Execute authorized one-call sandbox invoice draft
+    if: ${{ github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+
+      - name: Verify exact one-call authorization boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == "1" ]] || { echo "Workflow reruns are not authorized." >&2; exit 1; }
+          [[ "$CONTA_ENVIRONMENT" == "sandbox" ]] || { echo "Protected environment is not sandbox." >&2; exit 1; }
+          [[ "$CONTA_API_BASE_URL" == "https://api.gateway.conta-sandbox.no" ]] || { echo "Unexpected Conta API base URL." >&2; exit 1; }
+          [[ -n "${CONTA_API_KEY:-}" ]] || { echo "Missing protected Conta API key." >&2; exit 1; }
+          [[ "$CONTA_ORG_ID" =~ ^[0-9]+$ ]] || { echo "Invalid protected organization identifier." >&2; exit 1; }
+          echo "Exact one-call sandbox authorization boundary verified."
+
+      - name: Execute one authorized sandbox invoice-draft mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          php .github/scripts/conta-sandbox-invoice-draft-one-call.php
