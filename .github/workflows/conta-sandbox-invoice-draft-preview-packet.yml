@@ -129,4 +129,5 @@ jobs:
             echo "- Execution authorization granted: false."
           } >> "$GITHUB_STEP_SUMMARY"
 
+          echo "PAYLOAD_SHA256=${payload_hash}"
           echo "Protected proposal materialized locally and hashed; no provider mutation performed."
