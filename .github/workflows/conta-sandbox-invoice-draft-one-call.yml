@@ -1,26 +1,30 @@
-name: Conta Sandbox Invoice Draft One Call
+name: Conta Sandbox Invoice Draft Retry Until Complete
 
 on:
   workflow_dispatch:
     inputs:
       authorization:
-        description: 'Type APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_ONE_CALL exactly'
+        description: 'Type APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE exactly'
         required: true
         type: string
+  push:
+    branches: [main]
+    paths:
+      - 'docs/rollout/SANDBOX_INVOICE_DRAFT_RETRY_AUTHORIZATION_20260814.md'
 
 permissions:
   contents: read
 
 concurrency:
-  group: conta-sandbox-invoice-draft-one-call
+  group: conta-sandbox-invoice-draft-retry-until-complete
   cancel-in-progress: false
 
 jobs:
-  execute-authorized-one-call:
-    name: Execute authorized one-call sandbox invoice draft
-    if: ${{ github.run_attempt == 1 && inputs.authorization == 'APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_ONE_CALL' }}
+  execute-authorized-retry-series:
+    name: Execute authorized sandbox invoice draft until complete
+    if: ${{ github.event_name == 'push' || inputs.authorization == 'APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     environment: conta-sandbox-secrets
     env:
       CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
@@ -33,21 +37,67 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify exact one-call authorization boundary
+      - name: Verify retry-until-complete authorization boundary
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_RUN_ATTEMPT" == "1" ]] || { echo "Workflow reruns are not authorized." >&2; exit 1; }
-          [[ "${{ inputs.authorization }}" == "APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_ONE_CALL" ]] || { echo "Exact manual dispatch authorization token missing." >&2; exit 1; }
           [[ "$CONTA_ENVIRONMENT" == "sandbox" ]] || { echo "Protected environment is not sandbox." >&2; exit 1; }
           [[ "$CONTA_API_BASE_URL" == "https://api.gateway.conta-sandbox.no" ]] || { echo "Unexpected Conta API base URL." >&2; exit 1; }
           [[ -n "${CONTA_API_KEY:-}" ]] || { echo "Missing protected Conta API key." >&2; exit 1; }
           [[ "$CONTA_ORG_ID" =~ ^[0-9]+$ ]] || { echo "Invalid protected organization identifier." >&2; exit 1; }
-          echo "Exact one-call sandbox authorization boundary verified."
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "${{ inputs.authorization }}" == "APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE" ]] || { echo "Exact manual dispatch authorization token missing." >&2; exit 1; }
+          fi
+          echo "RETRY_UNTIL_COMPLETE_AUTHORIZATION_BOUNDARY=true"
+          echo "PRODUCTION_WRITE_AUTHORIZED=false"
 
-      - name: Execute one authorized sandbox invoice-draft mutation
+      - name: Apply observed sandbox response compatibility patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
+          php -l .github/scripts/conta-sandbox-invoice-draft-one-call.php
+
+      - name: Retry authorized sandbox invoice draft until complete
         shell: bash
         run: |
           set -euo pipefail
           umask 077
-          php .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          attempt=0
+          while true; do
+            attempt=$((attempt + 1))
+            echo "RETRY_ATTEMPT=$attempt"
+            log="$RUNNER_TEMP/conta-invoice-draft-retry-${attempt}.log"
+
+            set +e
+            CONTA_RETRY_ATTEMPT="$attempt" php .github/scripts/conta-sandbox-invoice-draft-one-call.php >"$log" 2>&1
+            code=$?
+            set -e
+
+            cat "$log"
+
+            if [[ "$code" -eq 0 ]]; then
+              echo "RETRY_UNTIL_COMPLETE_RESULT=SUCCEEDED"
+              echo "RETRY_ATTEMPTS_USED=$attempt"
+              exit 0
+            fi
+
+            if grep -Eq 'invoice_draft_prestate_not_empty|SUCCEEDED_OBJECT_OBSERVED_UNVERIFIED|SUCCEEDED_OBJECT_OBSERVED_BY_POSTSTATE_GET_UNVERIFIED|INDETERMINATE_EXCEPTION_AFTER_OR_BEFORE_DISPATCH|same_key_replay_was_not_rejected' "$log"; then
+              echo "RETRY_TERMINAL_SAFETY_STOP=true" >&2
+              echo "No further provider mutation will be attempted because an object may already exist or dispatch state is indeterminate." >&2
+              exit "$code"
+            fi
+
+            if grep -Eq 'FAILED_NO_OBJECT_OBSERVED_BY_POSTSTATE_GET|invoice_draft_prestate_(unrecognized|not_json|get_failed_http_)|synthetic_customer_(search_failed|exact_match_count_|readback_failed|identity_mismatch)' "$log"; then
+              delay=$((attempt * 5))
+              if [[ "$delay" -gt 30 ]]; then delay=30; fi
+              echo "SAFE_RETRY_CONFIRMED=true"
+              echo "RETRY_DELAY_SECONDS=$delay"
+              sleep "$delay"
+              continue
+            fi
+
+            echo "RETRY_UNCLASSIFIED_FAILURE_SAFETY_STOP=true" >&2
+            echo "Failure was not proven safe for another provider mutation." >&2
+            exit "$code"
+          done
