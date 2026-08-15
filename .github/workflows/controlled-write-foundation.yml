@@ -22,6 +22,8 @@ jobs:
         run: find app bin config public tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Controlled write foundation tests
         run: php tests/controlled-write-foundation.php
+      - name: Invoice draft readback verifier tests
+        run: php tests/invoice-draft-readback-verifier.php
       - name: Remaining control path tests
         run: php tests/remaining-control-paths.php
       - name: Validate sandbox retry runtime patch
