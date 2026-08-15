@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'docs/rollout/SANDBOX_INVOICE_DRAFT_RETRY_AUTHORIZATION_20260814.md'
+      - 'docs/rollout/SANDBOX_INVOICE_DRAFT_RETRY_CONTINUATION_20260815.md'
 
 permissions:
   contents: read
@@ -51,12 +52,14 @@ jobs:
           echo "RETRY_UNTIL_COMPLETE_AUTHORIZATION_BOUNDARY=true"
           echo "PRODUCTION_WRITE_AUTHORIZED=false"
 
-      - name: Apply observed sandbox response compatibility patch
+      - name: Apply observed sandbox compatibility patches
         shell: bash
         run: |
           set -euo pipefail
           python3 .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
+          php -l app/Config.php
           php -l .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) { fwrite(STDERR,"numeric_org_allowlist_regression\n"); exit(1); } echo "NUMERIC_ORGANIZATION_ALLOWLIST_REGRESSION_PASSED=true\n";'
 
       - name: Retry authorized sandbox invoice draft until complete
         shell: bash
@@ -82,13 +85,22 @@ jobs:
               exit 0
             fi
 
-            if grep -Eq 'invoice_draft_prestate_not_empty|SUCCEEDED_OBJECT_OBSERVED_UNVERIFIED|SUCCEEDED_OBJECT_OBSERVED_BY_POSTSTATE_GET_UNVERIFIED|INDETERMINATE_EXCEPTION_AFTER_OR_BEFORE_DISPATCH|same_key_replay_was_not_rejected' "$log"; then
+            ledger_reserved="$(grep -E '^LEDGER_RESERVED=' "$log" | tail -1 | cut -d= -f2 || true)"
+
+            if grep -Eq 'invoice_draft_prestate_not_empty|SUCCEEDED_OBJECT_OBSERVED_UNVERIFIED|SUCCEEDED_OBJECT_OBSERVED_BY_POSTSTATE_GET_UNVERIFIED|same_key_replay_was_not_rejected' "$log"; then
               echo "RETRY_TERMINAL_SAFETY_STOP=true" >&2
-              echo "No further provider mutation will be attempted because an object may already exist or dispatch state is indeterminate." >&2
+              echo "No further provider mutation will be attempted because an object exists or replay protection failed." >&2
               exit "$code"
             fi
 
-            if grep -Eq 'FAILED_NO_OBJECT_OBSERVED_BY_POSTSTATE_GET|invoice_draft_prestate_(unrecognized|not_json|get_failed_http_)|synthetic_customer_(search_failed|exact_match_count_|readback_failed|identity_mismatch)' "$log"; then
+            if [[ "$ledger_reserved" == "true" ]] && grep -Eq 'INDETERMINATE_EXCEPTION_AFTER_OR_BEFORE_DISPATCH|FAILED_OR_INDETERMINATE_NO_RETURNED_OBJECT_ID' "$log"; then
+              echo "RETRY_TERMINAL_SAFETY_STOP=true" >&2
+              echo "No further provider mutation will be attempted because dispatch may have occurred and outcome is indeterminate." >&2
+              exit "$code"
+            fi
+
+            if grep -Eq 'FAILED_NO_OBJECT_OBSERVED_BY_POSTSTATE_GET|invoice_draft_prestate_(unrecognized|not_json|get_failed_http_)|synthetic_customer_(search_failed|exact_match_count_|readback_failed|identity_mismatch)' "$log" || \
+               { [[ "$ledger_reserved" == "false" ]] && grep -Eq 'PRIMARY_ERROR_CLASS=(write_organization_not_allowlisted|write_action_not_allowlisted|write_route_not_allowlisted|approval_|sandbox_authorization_|write_dispatch_|release_manifest_|write_tools_|runtime_write_|execution_)' "$log"; }; then
               delay=$((attempt * 5))
               if [[ "$delay" -gt 30 ]]; then delay=30; fi
               echo "SAFE_RETRY_CONFIRMED=true"
