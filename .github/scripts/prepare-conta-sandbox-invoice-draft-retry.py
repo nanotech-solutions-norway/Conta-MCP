@@ -43,6 +43,20 @@ if packet_anchor not in text:
 text = text.replace(packet_anchor, packet_replacement, 1)
 
 path.write_text(text, encoding='utf-8')
+
+# Preserve numeric organization IDs as strings in the sandbox write allowlist.
+# PHP coerces numeric-string array keys to integers; Config::stringList previously
+# deduplicated via keyed arrays and therefore broke strict string comparisons.
+config_path = Path('app/Config.php')
+config_text = config_path.read_text(encoding='utf-8')
+old = """        $out = [];\n        foreach ($value as $item) {\n            $item = trim((string) $item);\n            if ($item !== '') {\n                $out[$item] = true;\n            }\n        }\n        return array_keys($out);\n"""
+new = """        $out = [];\n        foreach ($value as $item) {\n            $item = trim((string) $item);\n            if ($item !== '' && !in_array($item, $out, true)) {\n                $out[] = $item;\n            }\n        }\n        return $out;\n"""
+if old not in config_text:
+    raise SystemExit('config_string_list_patch_anchor_missing')
+config_text = config_text.replace(old, new, 1)
+config_path.write_text(config_text, encoding='utf-8')
+
 print('RUNTIME_COMPATIBILITY_PATCH_APPLIED=true')
+print('NUMERIC_ORGANIZATION_ALLOWLIST_PATCH_APPLIED=true')
 print('RETRY_SERIES_AUTHORIZED=true')
 print('PER_ATTEMPT_PROVIDER_MUTATION_LIMIT=1')
