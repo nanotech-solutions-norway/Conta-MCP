@@ -96,11 +96,11 @@ jobs:
           echo "::add-mask::$CUSTOMER_ID"
 
           jq -n --arg description "$TEST_LINE_DESCRIPTION" --argjson customerId "$CUSTOMER_ID" \
-            '{registrationSource:"CONTA",invoiceDraftLines:[{description:$description,price:1.0,quantity:1,discount:0,vatCode:"no.vat"}],type:"NORMAL",customerId:$customerId,invoiceLanguage:"NO",invoiceCurrency:"NOK"}' \
+            '{registrationSource:"CONTA",invoiceDraftLines:[{description:$description,price:1.0,quantity:1,discount:0,vatCode:"high"}],type:"NORMAL",customerId:$customerId,invoiceLanguage:"NO",invoiceCurrency:"NOK"}' \
             > "$payload"
 
           jq -e --arg id "$CUSTOMER_ID" \
-            'type=="object" and .registrationSource=="CONTA" and .type=="NORMAL" and (.customerId|tostring)==$id and .invoiceLanguage=="NO" and .invoiceCurrency=="NOK" and (.invoiceDraftLines|length)==1 and .invoiceDraftLines[0].description=="Atlas MCP Sandbox Invoice Draft Validation" and .invoiceDraftLines[0].price==1 and .invoiceDraftLines[0].quantity==1 and .invoiceDraftLines[0].discount==0 and .invoiceDraftLines[0].vatCode=="no.vat"' \
+            'type=="object" and .registrationSource=="CONTA" and .type=="NORMAL" and (.customerId|tostring)==$id and .invoiceLanguage=="NO" and .invoiceCurrency=="NOK" and (.invoiceDraftLines|length)==1 and .invoiceDraftLines[0].description=="Atlas MCP Sandbox Invoice Draft Validation" and .invoiceDraftLines[0].price==1 and .invoiceDraftLines[0].quantity==1 and .invoiceDraftLines[0].discount==0 and .invoiceDraftLines[0].vatCode=="high"' \
             "$payload" >/dev/null || { echo "Local proposal validation failed." >&2; exit 1; }
 
           payload_hash=$(php -r 'require "app/InvoiceDraftPreview.php"; $p=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR); echo InvoiceDraftPreview::payloadHash($p);' "$payload")
@@ -121,7 +121,7 @@ jobs:
             echo "- Synthetic line amount ex VAT: NOK 1.00."
             echo "- Quantity: 1."
             echo "- Discount: 0%."
-            echo "- VAT code: no.vat."
+            echo "- VAT code: high."
             echo "- Payload SHA-256: ${payload_hash}."
             echo "- Provider HTTP methods used: GET only."
             echo "- Provider mutation performed: false."
