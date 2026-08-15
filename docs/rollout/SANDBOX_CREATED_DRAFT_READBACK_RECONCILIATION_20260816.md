@@ -47,11 +47,7 @@ No ledger reservation, provider status, or provider execution outcome was produc
 
 ## Current blocker
 
-The controlled sandbox create is now proven to work after enabling invoicing with VAT. The remaining blocker is **readback verification compatibility**, not provider write capability.
-
-`InvoiceDraftReadbackVerifier` currently compares scalar values using strict PHP identity (`!==`). The current Conta OpenAPI models invoice-draft `price`, `quantity`, and `discount` as JSON `number` values. JSON representations such as `1` and `1.0` are semantically equivalent for the provider schema but decode to different PHP scalar types and can therefore fail the existing strict verifier.
-
-That is a plausible cause, but no verifier relaxation is authorized from inference alone.
+The controlled sandbox create is proven to work after enabling invoicing with VAT. The remaining work is readback-verifier compatibility, not provider write capability.
 
 ## GET-only reconciliation gate
 
@@ -62,7 +58,7 @@ The protected workflow `Conta Sandbox Created Draft Readback Reconciliation` per
 3. requires the post-create collection to contain exactly one draft, consistent with the proven zero-draft pre-state and exactly one successful provider POST;
 4. identifies that exact already-created draft using the committed SHA-256 of its draft ID, without printing the raw ID;
 5. GETs that draft;
-6. runs the existing verifier against the exact protected payload;
+6. runs the verifier against the exact protected payload;
 7. emits mismatch paths/reasons and safe scalar-type diagnostics for controlled fields;
 8. performs no POST, PUT, PATCH, DELETE, send, finalize, credit, update, or cleanup action.
 
@@ -80,7 +76,7 @@ PROVIDER_MUTATION_PERFORMED=false
 PRODUCTION_WRITE_AUTHORIZED=false
 ```
 
-No additional invoice draft may be created while this existing object remains unverified.
+No additional invoice draft may be created while this existing object remains under reconciliation.
 
 ## First GET-only reconciliation run — failed before draft readback
 
@@ -90,29 +86,47 @@ Workflow run `31913656966` passed the protected GET-only boundary and PHP syntax
 invoice_draft_search_failed
 ```
 
-The run did not execute any provider mutation. Its boundary markers were:
+The run did not execute any provider mutation. The diagnostic was then narrowed to the established zero-before / exactly-one-after invariant and the full draft list.
+
+## Second GET-only reconciliation run — mismatch isolated
+
+Workflow run `31914316870`, job `95083868934`, completed successfully using GET only. It found exactly one invoice draft and matched the committed draft-ID hash.
+
+Key markers:
 
 ```text
-GET_ONLY_BOUNDARY_VERIFIED=true
+INVOICE_DRAFT_SEARCH_STATUS=200
+INVOICE_DRAFT_SEARCH_HIT_COUNT=1
+EXPECTED_PAYLOAD_SHA256=79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7
+EXPECTED_PAYLOAD_HASH_MATCH=true
+EXPECTED_DRAFT_FOUND=true
+DRAFT_ID_SHA256=eab8ff114cc63fd8ab3d9f42249e20b8ce5ecce463e8368e98747f03c50eeabb
+READBACK_VERIFIED=false
+MISMATCH_COUNT=2
+MISMATCH_1_PATH=invoiceDraftLines.0.price
+MISMATCH_1_REASON=value_mismatch
+MISMATCH_2_PATH=registrationSource
+MISMATCH_2_REASON=missing_in_readback
+PROVIDER_HTTP_METHODS_USED=GET_ONLY
+PROVIDER_MUTATION_PERFORMED=false
 PRODUCTION_WRITE_AUTHORIZED=false
 ```
 
-The first diagnostic had added customer/type/currency filters to the invoice-draft search. Although the current OpenAPI exposes those query parameters, those filters are unnecessary for this reconciliation and introduced an avoidable failure surface.
+The field diagnostics established:
 
-### Corrective action
+- expected `price` type = float;
+- actual `price` type = integer;
+- strict equality = false;
+- numeric equality = true;
+- actual price value = `1`;
+- expected `registrationSource` = string;
+- actual `registrationSource` = null / omitted;
+- all substantive controlled business fields match: type, customerId, invoiceLanguage, invoiceCurrency, line description, quantity, discount, vatCode=`high`, and lineNo=`1`.
 
-The diagnostic is narrowed to the invariant already established by controlled-write evidence:
+### Verified compatibility rules
 
-- invoice-draft pre-state immediately before creation was exactly zero;
-- exactly one provider POST was made after VAT was enabled;
-- that POST returned a draft ID whose SHA-256 is committed above;
-- therefore the post-create full collection must contain exactly one draft for this controlled reconciliation.
+The current Conta OpenAPI models invoice-draft line `price`, `quantity`, and `discount` as JSON `number` values. Therefore integer and floating-point lexical representations of the same numeric value are semantically equivalent. The verifier may accept numeric equality when both decoded values are actual PHP numeric scalars (`int` or `float`), while continuing to reject numeric strings.
 
-The revised diagnostic now:
+The OpenAPI response model exposes `registrationSource` as a property but does not mark it as required. The live sandbox readback omitted it. Therefore absence of `registrationSource` alone must not fail readback verification; if the provider returns the field, its value remains subject to strict verification.
 
-- resolves the synthetic customer using the same recursive exact-name matcher as the successful controlled-write script;
-- lists all invoice drafts using only `hits=100`, `page=0`, `sort=id`;
-- requires `hitCount=1` and one returned hit object;
-- validates the hit ID against the committed draft-ID hash;
-- emits safe HTTP status/body-hash/top-level-key diagnostics on any GET failure;
-- preserves the GET-only mutation guard and production-write prohibition.
+The corrective implementation must remain fail-closed for substantive mismatches, including VAT code, customer, line content, currency, language, type, and line numbering.
