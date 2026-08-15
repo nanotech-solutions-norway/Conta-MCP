@@ -4,6 +4,18 @@ from pathlib import Path
 path = Path('.github/scripts/conta-sandbox-invoice-draft-one-call.php')
 text = path.read_text(encoding='utf-8')
 
+# Bind the exact corrected payload produced by protected GET-only preview run
+# 31884357398. Keep the full payload hash gate intact; change only the VAT code
+# and its corresponding canonical payload hash.
+payload_bindings = {
+    "const EXPECTED_PAYLOAD_SHA256 = 'dab571f2807745e1236a30dc93ae34ca8b8d2b15daaa26034f68a255e170b786';": "const EXPECTED_PAYLOAD_SHA256 = '61bb8961a82a45f0304909473c020f2f721d738aa4ea6c934722a258d2f346e0';",
+    "        'vatCode' => 'no.vat',": "        'vatCode' => 'high',",
+}
+for old, new in payload_bindings.items():
+    if text.count(old) != 1:
+        raise SystemExit(f'payload_binding_anchor_count_invalid:{old}:{text.count(old)}')
+    text = text.replace(old, new, 1)
+
 pre_start_marker = "    // Current Conta OpenAPI contract for v1SearchInvoiceDrafts:\n"
 pre_end_marker = "    // Conservative compatibility fallback for any previously observed list envelope.\n"
 pre_start = text.find(pre_start_marker)
@@ -123,5 +135,7 @@ config_path.write_text(config_text, encoding='utf-8')
 print('RUNTIME_COMPATIBILITY_PATCH_APPLIED=true')
 print('NUMERIC_ORGANIZATION_ALLOWLIST_PATCH_APPLIED=true')
 print('PROVIDER_ERROR_DIAGNOSTICS_PATCH_APPLIED=true')
+print('CORRECTED_VAT_CODE_BOUND=high')
+print('CORRECTED_PAYLOAD_SHA256_BOUND=61bb8961a82a45f0304909473c020f2f721d738aa4ea6c934722a258d2f346e0')
 print('RETRY_SERIES_AUTHORIZED=true')
 print('PER_ATTEMPT_PROVIDER_MUTATION_LIMIT=1')
