@@ -107,33 +107,40 @@ jobs:
           echo "INVOICE_VAT_CODES_OBSERVED=${codes:-none}"
           echo "invoice_codes=${codes}" >> "$GITHUB_OUTPUT"
 
-      - name: Inspect active bookkeeping-account VAT codes with GET only
-        id: bookkeeping
+      - name: Inspect active sales-account VAT codes with GET only
+        id: sales_bookkeeping
         shell: bash
         run: |
           set -euo pipefail
           umask 077
-          out="$RUNNER_TEMP/conta-bookkeeping-accounts.json"
+          out="$RUNNER_TEMP/conta-sales-bookkeeping-accounts.json"
           trap 'rm -f -- "$out"' EXIT
-          status=$(curl --silent --show-error --request GET \
+          status=$(curl --silent --show-error --get \
             --output "$out" --write-out '%{http_code}' \
             --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --data-urlencode 'hits=100' \
+            --data-urlencode 'page=0' \
+            --data-urlencode 'startBookkeepingAccountNo=3000' \
+            --data-urlencode 'endBookkeepingAccountNo=3999' \
             --connect-timeout 15 --max-time 45 \
             "${CONTA_API_BASE_URL}/accounting/organizations/${CONTA_ORG_ID}/bookkeeping-accounts")
 
-          echo "BOOKKEEPING_ACCOUNTS_GET_STATUS=${status:-unavailable}"
+          echo "SALES_BOOKKEEPING_ACCOUNTS_GET_STATUS=${status:-unavailable}"
           if [[ "$status" == "200" ]]; then
             active_codes=$(jq -r '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string")] | unique | sort | join(",")' "$out")
             active_count=$(jq '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string")] | length' "$out")
-            invoice_codes=$(jq -r '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string") | if . == "input.no.vat" or . == "output.no.vat" then "no.vat" elif startswith("output.") then sub("^output\\.";"") else empty end] | unique | sort | join(",")' "$out")
-            echo "ACTIVE_BOOKKEEPING_VAT_CODE_OCCURRENCES=$active_count"
-            echo "ACTIVE_BOOKKEEPING_VAT_CODES_RAW=${active_codes:-none}"
-            echo "ACTIVE_BOOKKEEPING_VAT_CODES_INVOICE_FORM=${invoice_codes:-none}"
+            output_count=$(jq '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string" and startswith("output."))] | length' "$out")
+            invoice_codes=$(jq -r '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string" and startswith("output.")) | sub("^output\\.";"")] | unique | sort | join(",")' "$out")
+            echo "ACTIVE_SALES_BOOKKEEPING_VAT_CODE_OCCURRENCES=$active_count"
+            echo "ACTIVE_SALES_BOOKKEEPING_OUTPUT_VAT_CODE_OCCURRENCES=$output_count"
+            echo "ACTIVE_SALES_BOOKKEEPING_VAT_CODES_RAW=${active_codes:-none}"
+            echo "ACTIVE_SALES_BOOKKEEPING_VAT_CODES_INVOICE_FORM=${invoice_codes:-none}"
             echo "invoice_codes=${invoice_codes}" >> "$GITHUB_OUTPUT"
           else
-            echo "ACTIVE_BOOKKEEPING_VAT_CODE_OCCURRENCES=unavailable"
-            echo "ACTIVE_BOOKKEEPING_VAT_CODES_RAW=unavailable"
-            echo "ACTIVE_BOOKKEEPING_VAT_CODES_INVOICE_FORM=unavailable"
+            echo "ACTIVE_SALES_BOOKKEEPING_VAT_CODE_OCCURRENCES=unavailable"
+            echo "ACTIVE_SALES_BOOKKEEPING_OUTPUT_VAT_CODE_OCCURRENCES=unavailable"
+            echo "ACTIVE_SALES_BOOKKEEPING_VAT_CODES_RAW=unavailable"
+            echo "ACTIVE_SALES_BOOKKEEPING_VAT_CODES_INVOICE_FORM=unavailable"
             echo "invoice_codes=" >> "$GITHUB_OUTPUT"
           fi
 
@@ -164,10 +171,10 @@ jobs:
         env:
           PRODUCT_CODES: ${{ steps.products.outputs.invoice_codes }}
           INVOICE_CODES: ${{ steps.invoices.outputs.invoice_codes }}
-          BOOKKEEPING_CODES: ${{ steps.bookkeeping.outputs.invoice_codes }}
+          SALES_CODES: ${{ steps.sales_bookkeeping.outputs.invoice_codes }}
         run: |
           set -euo pipefail
-          combined=$(printf '%s\n%s\n%s\n' "$PRODUCT_CODES" "$INVOICE_CODES" "$BOOKKEEPING_CODES" | tr ',' '\n' | sed '/^$/d' | sort -u | paste -sd, -)
+          combined=$(printf '%s\n%s\n%s\n' "$PRODUCT_CODES" "$INVOICE_CODES" "$SALES_CODES" | tr ',' '\n' | sed '/^$/d' | sort -u | paste -sd, -)
           echo "OBSERVED_ORG_INVOICE_VAT_CODES=${combined:-none}"
           echo "PROVIDER_HTTP_METHODS_USED=GET_ONLY"
           echo "PROVIDER_MUTATION_PERFORMED=false"
@@ -178,5 +185,5 @@ jobs:
             echo "- Provider HTTP methods used: GET only."
             echo "- Provider mutation performed: false."
             echo "- Production write authorized: false."
-            echo "- Observed invoice-form VAT codes from existing sandbox records and active bookkeeping configuration: ${combined:-none}."
+            echo "- Observed invoice-form VAT codes from existing sandbox records and active 3000-3999 sales-account configuration: ${combined:-none}."
           } >> "$GITHUB_STEP_SUMMARY"
