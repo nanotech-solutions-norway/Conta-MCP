@@ -55,15 +55,16 @@ That is a plausible cause, but no verifier relaxation is authorized from inferen
 
 ## GET-only reconciliation gate
 
-The new protected workflow `Conta Sandbox Created Draft Readback Reconciliation` performs only GET requests. It:
+The protected workflow `Conta Sandbox Created Draft Readback Reconciliation` performs only GET requests. It:
 
 1. resolves the same protected synthetic customer;
-2. searches invoice drafts for that customer;
-3. identifies the exact already-created draft using the committed SHA-256 of its draft ID, without printing the raw ID;
-4. GETs that draft;
-5. runs the existing verifier against the exact protected payload;
-6. emits mismatch paths/reasons and safe scalar-type diagnostics for controlled fields;
-7. performs no POST, PUT, PATCH, DELETE, send, finalize, credit, update, or cleanup action.
+2. lists the complete sandbox invoice-draft collection using the already-proven `hits`, `page`, and `sort` parameters;
+3. requires the post-create collection to contain exactly one draft, consistent with the proven zero-draft pre-state and exactly one successful provider POST;
+4. identifies that exact already-created draft using the committed SHA-256 of its draft ID, without printing the raw ID;
+5. GETs that draft;
+6. runs the existing verifier against the exact protected payload;
+7. emits mismatch paths/reasons and safe scalar-type diagnostics for controlled fields;
+8. performs no POST, PUT, PATCH, DELETE, send, finalize, credit, update, or cleanup action.
 
 Expected draft ID SHA-256:
 
@@ -80,3 +81,38 @@ PRODUCTION_WRITE_AUTHORIZED=false
 ```
 
 No additional invoice draft may be created while this existing object remains unverified.
+
+## First GET-only reconciliation run — failed before draft readback
+
+Workflow run `31913656966` passed the protected GET-only boundary and PHP syntax validation, then failed at the invoice-draft search step with:
+
+```text
+invoice_draft_search_failed
+```
+
+The run did not execute any provider mutation. Its boundary markers were:
+
+```text
+GET_ONLY_BOUNDARY_VERIFIED=true
+PRODUCTION_WRITE_AUTHORIZED=false
+```
+
+The first diagnostic had added customer/type/currency filters to the invoice-draft search. Although the current OpenAPI exposes those query parameters, those filters are unnecessary for this reconciliation and introduced an avoidable failure surface.
+
+### Corrective action
+
+The diagnostic is narrowed to the invariant already established by controlled-write evidence:
+
+- invoice-draft pre-state immediately before creation was exactly zero;
+- exactly one provider POST was made after VAT was enabled;
+- that POST returned a draft ID whose SHA-256 is committed above;
+- therefore the post-create full collection must contain exactly one draft for this controlled reconciliation.
+
+The revised diagnostic now:
+
+- resolves the synthetic customer using the same recursive exact-name matcher as the successful controlled-write script;
+- lists all invoice drafts using only `hits=100`, `page=0`, `sort=id`;
+- requires `hitCount=1` and one returned hit object;
+- validates the hit ID against the committed draft-ID hash;
+- emits safe HTTP status/body-hash/top-level-key diagnostics on any GET failure;
+- preserves the GET-only mutation guard and production-write prohibition.
