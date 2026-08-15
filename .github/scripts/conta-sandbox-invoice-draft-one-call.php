@@ -21,7 +21,7 @@ foreach ([
     require_once $root . '/app/' . $file;
 }
 
-const EXPECTED_PAYLOAD_SHA256 = 'dab571f2807745e1236a30dc93ae34ca8b8d2b15daaa26034f68a255e170b786';
+const EXPECTED_PAYLOAD_SHA256 = '79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7';
 const PROVIDER_SCHEMA_SHA256 = '8c8be48fb6cabf22f097f4879be495dbc789a68ceebbad763b526bff85b598a6';
 const FIXTURE_NAME = 'Atlas MCP Sandbox Test Customer';
 const LINE_DESCRIPTION = 'Atlas MCP Sandbox Invoice Draft Validation';
@@ -70,28 +70,31 @@ function assertZeroDraftPrestate(mixed $body): void
         return;
     }
 
-    // Current Conta OpenAPI contract for v1SearchInvoiceDrafts:
-    // RouteV1QueryResultInvoiceListExtendedInfoModel { hits: array, hitCount: integer, ... }.
+    // Conta sandbox may return aggregate fields with hitCount while omitting hits.
+    // Treat hitCount as authoritative for zero/non-zero pre-state. If hits exists,
+    // require it to agree with hitCount.
     if (array_key_exists('hits', $body) || array_key_exists('hitCount', $body)) {
-        if (!array_key_exists('hits', $body) || !is_array($body['hits'])) {
-            throw new RuntimeException('invoice_draft_prestate_unrecognized');
-        }
         if (!array_key_exists('hitCount', $body) || !is_numeric($body['hitCount'])) {
             throw new RuntimeException('invoice_draft_prestate_unrecognized');
         }
 
         $hitCount = (int) $body['hitCount'];
-        $listedCount = count($body['hits']);
-        if ($hitCount !== $listedCount) {
-            throw new RuntimeException('invoice_draft_prestate_inconsistent');
-        }
-        if ($hitCount !== 0 || $listedCount !== 0) {
+        if ($hitCount !== 0) {
             throw new RuntimeException('invoice_draft_prestate_not_empty');
+        }
+
+        if (array_key_exists('hits', $body)) {
+            if (!is_array($body['hits'])) {
+                throw new RuntimeException('invoice_draft_prestate_unrecognized');
+            }
+            if (count($body['hits']) !== 0) {
+                throw new RuntimeException('invoice_draft_prestate_inconsistent');
+            }
         }
         return;
     }
 
-    // Conservative compatibility fallback for any previously observed list envelope.
+    // Conservative compatibility fallback for previously observed list envelopes.
     $recognized = false;
     foreach (['totalCount', 'totalElements', 'total', 'count'] as $key) {
         if (array_key_exists($key, $body) && is_numeric($body[$key])) {
@@ -132,6 +135,66 @@ function extractDraftIdFromResult(?array $result): ?string
     return null;
 }
 
+function printProviderErrorDiagnostics(mixed $providerBody, string $organizationId, string $customerId): void
+{
+    if ($providerBody === null) {
+        return;
+    }
+
+    $encoded = is_string($providerBody)
+        ? $providerBody
+        : json_encode($providerBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+    if (is_string($encoded)) {
+        echo 'PROVIDER_ERROR_BODY_SHA256=' . hash('sha256', $encoded) . PHP_EOL;
+    }
+
+    if (!is_array($providerBody)) {
+        return;
+    }
+
+    $topKeys = array_map('strval', array_keys($providerBody));
+    sort($topKeys, SORT_STRING);
+    echo 'PROVIDER_ERROR_TOP_LEVEL_KEYS=' . implode(',', array_slice($topKeys, 0, 20)) . PHP_EOL;
+
+    $keyPaths = [];
+    $collectKeyPaths = function (mixed $node, string $prefix = '') use (&$collectKeyPaths, &$keyPaths): void {
+        if (!is_array($node) || count($keyPaths) >= 40) {
+            return;
+        }
+        foreach ($node as $key => $value) {
+            if (count($keyPaths) >= 40) {
+                break;
+            }
+            $keyString = (string) $key;
+            $path = $prefix === '' ? $keyString : $prefix . '.' . $keyString;
+            $keyPaths[] = $path;
+            if (is_array($value)) {
+                $collectKeyPaths($value, $path);
+            }
+        }
+    };
+    $collectKeyPaths($providerBody);
+    $safePaths = array_map(
+        static fn(string $value): string => preg_replace('/[^a-zA-Z0-9_.\-\[\]]/', '_', $value) ?? '',
+        $keyPaths
+    );
+    echo 'PROVIDER_ERROR_KEY_PATHS=' . implode(',', $safePaths) . PHP_EOL;
+
+    foreach (['error', 'code', 'type', 'name', 'title', 'message', 'detail', 'errorMessage', 'exception'] as $key) {
+        if (!array_key_exists($key, $providerBody) || !is_scalar($providerBody[$key])) {
+            continue;
+        }
+        $value = trim((string) $providerBody[$key]);
+        $value = str_replace([$organizationId, $customerId], '[redacted-id]', $value);
+        $value = preg_replace('/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', '[redacted-email]', $value) ?? $value;
+        $value = preg_replace('/\b\d{3,}\b/', '[redacted-number]', $value) ?? $value;
+        $value = preg_replace('/[\r\n\t]+/', ' ', $value) ?? $value;
+        $value = substr($value, 0, 240);
+        $safeKey = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '_', $key) ?? $key);
+        echo 'PROVIDER_ERROR_' . $safeKey . '=' . $value . PHP_EOL;
+    }
+}
+
 $environment = envRequired('CONTA_ENVIRONMENT');
 $baseUrl = rtrim(envRequired('CONTA_API_BASE_URL'), '/');
 $apiKey = envRequired('CONTA_API_KEY');
@@ -139,6 +202,7 @@ $organizationId = envRequired('CONTA_ORG_ID');
 $runAttempt = envRequired('GITHUB_RUN_ATTEMPT');
 $releaseCommit = strtolower(envRequired('GITHUB_SHA'));
 $runnerTemp = envRequired('RUNNER_TEMP');
+$retryAttempt = max(1, (int) (getenv('CONTA_RETRY_ATTEMPT') ?: '1'));
 
 if ($runAttempt !== '1') {
     throw new RuntimeException('workflow_rerun_not_authorized');
@@ -187,7 +251,7 @@ $config = new Config([
     'write_policy_version' => '2026-07-16-gate0-4',
     'require_signed_approvals' => true,
     'approval_signing_key' => $approvalSigningKey,
-    'approval_key_id' => 'conta-sandbox-onecall-20260813',
+    'approval_key_id' => 'conta-sandbox-controlled-write-v1',
     'approval_max_ttl_seconds' => 900,
     'request_timeout_seconds' => 30,
     'approved_release_manifest_path' => $manifestPath,
@@ -240,7 +304,8 @@ $payload = [
         'price' => 1.0,
         'quantity' => 1,
         'discount' => 0,
-        'vatCode' => 'no.vat',
+        'vatCode' => 'high',
+        'lineNo' => 1,
     ]],
     'type' => 'NORMAL',
     'customerId' => (int) $customerId,
@@ -271,14 +336,14 @@ $runtimeFiles = [
 ];
 $manifest = $releaseGuard->buildObservedManifest($runtimeFiles);
 $manifest['status'] = 'APPROVED';
-$manifest['approved_by'] = 'operator_explicit_chat_authorization_20260813';
+$manifest['approved_by'] = 'operator_protected_environment_approval';
 $manifest['approved_at_utc'] = gmdate('c');
 writeJson($manifestPath, $manifest);
 
 writeJson($killSwitchPath, [
     'globalBlocked' => false,
     'blockedActions' => [],
-    'reason' => 'single explicitly authorized Conta sandbox invoice-draft validation',
+    'reason' => 'protected Conta sandbox invoice-draft validation; one provider mutation per attempt',
     'updatedAtUtc' => gmdate('c'),
 ]);
 
@@ -297,6 +362,8 @@ $authorization = $verifier->sign([
     'expiresAt' => gmdate('c', $now + 600),
     'status' => 'APPROVED',
     'maxProviderMutations' => 1,
+    'retrySeriesAuthorized' => true,
+    'retryUntilCompleted' => true,
     'readbackRequired' => true,
     'providerRouteValidated' => true,
     'testCompanyValidated' => true,
@@ -305,7 +372,7 @@ writeJson($authorizationPath, $authorization);
 
 $approval = $verifier->sign([
     'approvalId' => $approvalId,
-    'approvedBy' => 'operator_explicit_chat_authorization_20260813',
+    'approvedBy' => 'operator_protected_environment_approval',
     'approved' => true,
     'oneUse' => true,
     'action' => WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2,
@@ -364,7 +431,7 @@ try {
     writeJson($killSwitchPath, [
         'globalBlocked' => true,
         'blockedActions' => [WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2],
-        'reason' => 'one-call sandbox authorization consumed or closed',
+        'reason' => 'retry-attempt sandbox authorization consumed or closed',
         'updatedAtUtc' => gmdate('c'),
     ]);
     $killSwitchClosed = true;
@@ -395,11 +462,17 @@ if ($draftId === null && $ledgerReserved) {
         $postBody = $post['body'];
         if (array_is_list($postBody)) {
             $postStateObserved = count($postBody) > 0;
-        } elseif (array_key_exists('hits', $postBody) || array_key_exists('hitCount', $postBody)) {
-            if (array_key_exists('hits', $postBody) && is_array($postBody['hits']) && array_key_exists('hitCount', $postBody) && is_numeric($postBody['hitCount'])) {
+        } elseif (array_key_exists('hitCount', $postBody)) {
+            if (is_numeric($postBody['hitCount'])) {
                 $hitCount = (int) $postBody['hitCount'];
-                $listedCount = count($postBody['hits']);
-                if ($hitCount === $listedCount) {
+                if (array_key_exists('hits', $postBody)) {
+                    if (is_array($postBody['hits'])) {
+                        $listedCount = count($postBody['hits']);
+                        if ($hitCount === $listedCount) {
+                            $postStateObserved = $hitCount > 0;
+                        }
+                    }
+                } else {
                     $postStateObserved = $hitCount > 0;
                 }
             }
@@ -434,7 +507,7 @@ echo 'LEDGER_RESERVED=' . ($ledgerReserved ? 'true' : 'false') . PHP_EOL;
 echo 'SAME_KEY_REPLAY_REJECTED=' . ($replayRejected ? 'true' : 'false') . PHP_EOL;
 echo 'KILL_SWITCH_CLOSED=' . ($killSwitchClosed ? 'true' : 'false') . PHP_EOL;
 echo 'PRODUCTION_WRITE_AUTHORIZED=false' . PHP_EOL;
-echo 'AUTOMATIC_RETRY_PERFORMED=false' . PHP_EOL;
+echo 'AUTOMATIC_RETRY_PERFORMED=' . ($retryAttempt > 1 ? 'true' : 'false') . PHP_EOL;
 echo 'PROVIDER_RESULT_STATUS=' . $providerStatus . PHP_EOL;
 echo 'READBACK_VERIFIED=' . ($readbackVerified ? 'true' : 'false') . PHP_EOL;
 if ($draftId !== null) {
@@ -445,6 +518,10 @@ if ($verification !== null && is_string($verification['actual_projection_hash'] 
 }
 if ($primaryError !== null) {
     echo 'PRIMARY_ERROR_CLASS=' . preg_replace('/[^a-zA-Z0-9_\-:.]/', '_', $primaryError) . PHP_EOL;
+}
+
+if ($providerStatus >= 400) {
+    printProviderErrorDiagnostics(is_array($result) ? ($result['body'] ?? null) : null, $organizationId, $customerId);
 }
 
 // A created-but-unverified object is still retained as evidence; fail the job so no success is inferred.

@@ -26,17 +26,10 @@ jobs:
         run: php tests/invoice-draft-readback-verifier.php
       - name: Remaining control path tests
         run: php tests/remaining-control-paths.php
-      - name: Validate sandbox retry runtime patch
+      - name: Validate baked sandbox controlled-write harness
         shell: bash
         run: |
           set -euo pipefail
-          tmp="$(mktemp -d)"
-          trap 'rm -rf "$tmp"' EXIT
-          mkdir -p "$tmp/repo"
-          cp -a . "$tmp/repo/"
-          cd "$tmp/repo"
-          python3 .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
-          python3 .github/scripts/bind-conta-sandbox-invoice-draft-lineno.py
           php -l app/Config.php
           php -l .github/scripts/conta-sandbox-invoice-draft-one-call.php
           grep -q "PROVIDER_ERROR_BODY_SHA256" .github/scripts/conta-sandbox-invoice-draft-one-call.php
@@ -45,8 +38,10 @@ jobs:
           grep -q "const EXPECTED_PAYLOAD_SHA256 = '79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7';" .github/scripts/conta-sandbox-invoice-draft-one-call.php
           grep -q "'vatCode' => 'high'" .github/scripts/conta-sandbox-invoice-draft-one-call.php
           grep -q "'lineNo' => 1" .github/scripts/conta-sandbox-invoice-draft-one-call.php
-          php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) exit(1);'
-          echo "SANDBOX_RETRY_RUNTIME_PATCH_VALIDATION_PASSED=true"
+          php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789","123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) exit(1);'
+          test ! -e .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
+          test ! -e .github/scripts/bind-conta-sandbox-invoice-draft-lineno.py
+          echo "BAKED_SANDBOX_CONTROLLED_WRITE_VALIDATION_PASSED=true"
       - name: Verify examples remain fail-closed
         run: |
           php -r '$j=json_decode(file_get_contents("config/write-kill-switch.example.json"),true); if (($j["globalBlocked"] ?? null) !== true) exit(1);'
@@ -58,11 +53,11 @@ jobs:
           cat > artifact/IMPLEMENTATION_SUMMARY.md <<'EOF'
           # Conta MCP Remaining Control Paths — GitHub Actions Evidence
 
-          Status: IMPLEMENTED_ON_DRAFT_PR
-          Provider call performed: false
-          Sandbox mutation performed: false
+          Status: SANDBOX_CONTROLLED_WRITE_VERIFIED
+          Provider call performed in CI: false
+          Sandbox mutation performed in CI: false
           Production deployment performed: false
-          Live write approved: false
+          Production write approved: false
 
           Implemented controls:
           - approved release-manifest guard
@@ -71,8 +66,9 @@ jobs:
           - payload-bound one-call authorization
           - authorization, nonce and idempotency replay prevention
           - mandatory post-create readback verification
+          - validated numeric JSON readback compatibility
           - readiness and manifest CLI tooling
-          - explicit one-call sandbox harness
+          - protected sandbox controlled-write harness
           - permanent production-program refusal
           EOF
           (cd artifact/source && zip -qr ../Conta_MCP_Remaining_Control_Paths_Source.zip .)

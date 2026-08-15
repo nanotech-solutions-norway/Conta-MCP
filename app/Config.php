@@ -222,11 +222,11 @@ final class Config
         $out = [];
         foreach ($value as $item) {
             $item = trim((string) $item);
-            if ($item !== '') {
-                $out[$item] = true;
+            if ($item !== '' && !in_array($item, $out, true)) {
+                $out[] = $item;
             }
         }
-        return array_keys($out);
+        return $out;
     }
 
     private function toBool(mixed $value): bool
