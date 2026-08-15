@@ -15,6 +15,16 @@ final class InvoiceDraftReadbackVerifier
         'productId', 'description', 'price', 'quantity', 'discount', 'vatCode', 'lineNo',
     ];
 
+    /**
+     * Conta's published RouteV1InvoiceDraftModel exposes registrationSource but does
+     * not mark it as required on readback. The sandbox provider has been observed
+     * omitting it after a successful create, so absence alone is not a mismatch.
+     * If the provider does return it, the value is still verified normally.
+     */
+    private const OPTIONAL_READBACK_PATHS = [
+        'registrationSource',
+    ];
+
     public function verify(array $proposed, array $readback): array
     {
         $expected = $this->controlledProjection($proposed);
@@ -68,6 +78,9 @@ final class InvoiceDraftReadbackVerifier
             foreach ($expected as $key => $value) {
                 $childPath = $path === '' ? (string) $key : $path . '.' . $key;
                 if (!array_key_exists($key, $actual)) {
+                    if (in_array($childPath, self::OPTIONAL_READBACK_PATHS, true)) {
+                        continue;
+                    }
                     $mismatches[] = ['path' => $childPath, 'reason' => 'missing_in_readback'];
                     continue;
                 }
@@ -75,6 +88,17 @@ final class InvoiceDraftReadbackVerifier
             }
             return;
         }
+
+        // JSON Schema `number` values may decode as either PHP int or float
+        // depending on the provider's lexical representation (for example 1 vs 1.0).
+        // Accept numeric equivalence only when both values are actual PHP numbers;
+        // numeric strings are intentionally not coerced.
+        if ((is_int($expected) || is_float($expected)) && (is_int($actual) || is_float($actual))) {
+            if ((float) $expected === (float) $actual) {
+                return;
+            }
+        }
+
         if ($expected !== $actual) {
             $mismatches[] = ['path' => $path, 'reason' => 'value_mismatch'];
         }
