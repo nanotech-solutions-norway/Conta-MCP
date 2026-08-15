@@ -1,0 +1,129 @@
+name: Conta Sandbox VAT Capability Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/conta-sandbox-vat-capability-diagnostic.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-sandbox-vat-capability-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnose-vat-capability:
+    name: Diagnose sandbox VAT capability with GET only
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-sandbox-secrets
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+
+      - name: Verify protected sandbox boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CONTA_ENVIRONMENT" == "sandbox" ]] || { echo "Protected environment is not sandbox." >&2; exit 1; }
+          [[ "$CONTA_API_BASE_URL" == "https://api.gateway.conta-sandbox.no" ]] || { echo "Unexpected Conta base URL." >&2; exit 1; }
+          [[ -n "${CONTA_API_KEY:-}" ]] || { echo "Missing protected Conta API key." >&2; exit 1; }
+          [[ "$CONTA_ORG_ID" =~ ^[0-9]+$ ]] || { echo "Invalid protected organization identifier." >&2; exit 1; }
+          echo "Protected Conta sandbox boundary verified."
+
+      - name: Read organization access metadata with GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          out="$RUNNER_TEMP/conta-org-access.json"
+          trap 'rm -f -- "$out"' EXIT
+          status=$(curl --silent --show-error --request GET \
+            --output "$out" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations")
+          [[ "$status" == "200" ]] || { echo "Organization access GET failed (http_status=${status:-unavailable})." >&2; exit 1; }
+          match_count=$(jq --arg id "$CONTA_ORG_ID" '[.[]? | select((.id|tostring)==$id)] | length' "$out")
+          [[ "$match_count" -eq 1 ]] || { echo "Protected organization access record count was ${match_count}." >&2; exit 1; }
+          active=$(jq -r --arg id "$CONTA_ORG_ID" '.[] | select((.id|tostring)==$id) | .active // false' "$out")
+          blocked=$(jq -r --arg id "$CONTA_ORG_ID" '.[] | select((.id|tostring)==$id) | .blockedStatus // "unknown"' "$out")
+          echo "ORG_ACCESS_ACTIVE=$active"
+          echo "ORG_BLOCKED_STATUS=$blocked"
+
+      - name: Inspect existing product VAT codes with GET only
+        id: products
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          out="$RUNNER_TEMP/conta-products.json"
+          trap 'rm -f -- "$out"' EXIT
+          status=$(curl --silent --show-error --get \
+            --output "$out" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --data-urlencode 'hits=100' --data-urlencode 'page=0' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/products")
+          [[ "$status" == "200" ]] || { echo "Product search GET failed (http_status=${status:-unavailable})." >&2; exit 1; }
+
+          raw_codes=$(jq -r '[.. | objects | .vatCode? | select(type=="string")] | unique | sort | join(",")' "$out")
+          raw_count=$(jq '[.. | objects | .vatCode? | select(type=="string")] | length' "$out")
+          short_codes=$(jq -r '[.. | objects | .vatCode? | select(type=="string") | if . == "input.no.vat" then "no.vat" elif startswith("output.") then sub("^output\\.";"") else empty end] | unique | sort | join(",")' "$out")
+
+          echo "PRODUCT_VAT_CODE_OCCURRENCES=$raw_count"
+          echo "PRODUCT_VAT_CODES_RAW=${raw_codes:-none}"
+          echo "PRODUCT_VAT_CODES_INVOICE_FORM=${short_codes:-none}"
+          echo "invoice_codes=${short_codes}" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect existing invoice VAT codes with GET only
+        id: invoices
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          out="$RUNNER_TEMP/conta-invoices.json"
+          trap 'rm -f -- "$out"' EXIT
+          status=$(curl --silent --show-error --get \
+            --output "$out" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --data-urlencode 'hits=100' --data-urlencode 'page=0' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/invoices")
+          [[ "$status" == "200" ]] || { echo "Invoice search GET failed (http_status=${status:-unavailable})." >&2; exit 1; }
+
+          codes=$(jq -r '[.. | objects | .vatCode? | select(type=="string")] | unique | sort | join(",")' "$out")
+          count=$(jq '[.. | objects | .vatCode? | select(type=="string")] | length' "$out")
+          echo "INVOICE_VAT_CODE_OCCURRENCES=$count"
+          echo "INVOICE_VAT_CODES_OBSERVED=${codes:-none}"
+          echo "invoice_codes=${codes}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize GET-only VAT capability evidence
+        shell: bash
+        env:
+          PRODUCT_CODES: ${{ steps.products.outputs.invoice_codes }}
+          INVOICE_CODES: ${{ steps.invoices.outputs.invoice_codes }}
+        run: |
+          set -euo pipefail
+          combined=$(printf '%s\n%s\n' "$PRODUCT_CODES" "$INVOICE_CODES" | tr ',' '\n' | sed '/^$/d' | sort -u | paste -sd, -)
+          echo "OBSERVED_ORG_INVOICE_VAT_CODES=${combined:-none}"
+          echo "PROVIDER_HTTP_METHODS_USED=GET_ONLY"
+          echo "PROVIDER_MUTATION_PERFORMED=false"
+          echo "PRODUCTION_WRITE_AUTHORIZED=false"
+          {
+            echo "## Conta sandbox VAT capability diagnostic"
+            echo
+            echo "- Provider HTTP methods used: GET only."
+            echo "- Provider mutation performed: false."
+            echo "- Production write authorized: false."
+            echo "- Observed invoice-form VAT codes from existing sandbox records: ${combined:-none}."
+          } >> "$GITHUB_STEP_SUMMARY"
