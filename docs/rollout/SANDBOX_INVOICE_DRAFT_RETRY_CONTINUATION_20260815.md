@@ -13,6 +13,8 @@ The following defects and provider findings are established:
 3. Bounded diagnostic run `31883320242` made exactly one POST, received HTTP 422, reconciled zero drafts and emitted `PROVIDER_ERROR_NAME=WrongVatCodeException`. The rejected payload used `vatCode=no.vat`.
 4. Protected preview run `31884357398` corrected the invoice-route token to `vatCode=high` and produced payload SHA-256 `61bb8961a82a45f0304909473c020f2f721d738aa4ea6c934722a258d2f346e0`.
 5. Bounded execution run `31886632151` used that exact `high` payload, made exactly one POST, received HTTP 422 `WrongVatCodeException`, reconciled zero drafts, rejected same-key replay, closed the kill switch, performed no automatic retry, and kept production writes false.
+6. Protected preview run `31903886829` added only `lineNo=1` and produced canonical payload SHA-256 `79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7`.
+7. Bounded execution run `31910909286` used that exact payload, made exactly one POST, again received HTTP 422 `WrongVatCodeException` with the same provider error-body SHA-256 as the prior `high` attempt, reconciled zero drafts, performed no automatic retry, rejected same-key replay, closed the kill switch, and kept production writes false.
 
 ## Organization-specific VAT capability evidence
 
@@ -41,9 +43,7 @@ This proves `output.high` exists on active sales accounts. Therefore the previou
 
 ## Protected line-number preview
 
-Conta's current invoice-draft example supplies sequential line numbers. The previously rejected synthetic payload omitted `lineNo`.
-
-Protected GET-only preview run `31903886829` completed successfully with the same synthetic customer and business fields, changing only the single invoice line by adding `lineNo=1`.
+Conta's current invoice-draft example supplies sequential line numbers. Protected GET-only preview run `31903886829` completed successfully with the same synthetic customer and business fields, changing only the single invoice line by adding `lineNo=1`.
 
 ```text
 environment=sandbox
@@ -61,6 +61,16 @@ production_write_authorized=false
 
 The protected customer identifier remains masked and is not committed.
 
+## Provider-side invoice VAT setting change — 2026-08-16
+
+After run `31910909286` reproduced `WrongVatCodeException`, the next diagnostic gate was moved from API payload changes to the Conta sandbox UI because the public external API does not expose the invoice-side VAT enablement setting.
+
+The operator checked the same protected Conta sandbox organization used by the MCP credentials and confirmed that the invoice VAT setting was disabled. The operator then manually enabled invoicing with VAT in the sandbox UI and reported `Enabled` on 2026-08-16.
+
+This is a provider-side sandbox configuration change only. No payload field, protected customer, authorization rule, retry classifier, runtime write gate, or production setting is changed by this continuation update.
+
+Because run `31910909286` ended deterministically with HTTP 422 and mandatory GET post-state proved zero invoice drafts existed, a fresh workflow run with `run_attempt=1` is permitted. The failed run itself must not be re-run as a GitHub Actions attempt >1.
+
 ## Corrected retry boundary
 
 ```text
@@ -77,11 +87,11 @@ kill_switch_required=true
 production_write_authorized=false
 ```
 
-A provider retry after a dispatched POST is permitted only for HTTP 429 or 5xx and only when mandatory GET post-state proves that no invoice draft exists. Any other 4xx is terminal for that workflow run.
+A provider retry after a dispatched POST is permitted only for HTTP 429 or 5xx and only when mandatory GET post-state definitively proves that no invoice draft exists. Any other 4xx is terminal for that workflow run.
 
-## Next execution: exact preview-bound payload
+## Next execution: same exact preview-bound payload after invoice-VAT enablement
 
-The next protected sandbox execution is authorized to use exactly:
+The next protected sandbox execution is authorized to use exactly the same already-previewed payload:
 
 ```text
 vatCode=high
@@ -89,14 +99,14 @@ lineNo=1
 payload_sha256=79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7
 ```
 
-All other synthetic payload fields remain unchanged from the previously approved invoice-draft validation payload.
+No payload correction or new VAT token is introduced. The only material change since run `31910909286` is the operator-confirmed provider-side sandbox setting enabling invoicing with VAT.
 
-The runtime binding is deliberately two-stage and temporary:
+The runtime binding remains deliberately two-stage and temporary:
 
 1. `prepare-conta-sandbox-invoice-draft-retry.py` applies the already-reviewed sandbox compatibility, retry, diagnostics, and `high` VAT binding.
 2. `bind-conta-sandbox-invoice-draft-lineno.py` changes only the already-previewed payload hash from `61bb...` to `79ae...` and inserts `lineNo => 1` immediately after `vatCode => high`.
 
-The controlled-write CI reproduces both stages and verifies the final runtime script contains the exact protected hash, `vatCode=high`, and `lineNo=1` before merge.
+The controlled-write CI reproduces both stages and verifies the final runtime script contains the exact protected hash, `vatCode=high`, and `lineNo=1`.
 
 Success requires all of the following:
 
