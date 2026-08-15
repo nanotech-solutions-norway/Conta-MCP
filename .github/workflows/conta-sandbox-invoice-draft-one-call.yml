@@ -57,6 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
+          python3 .github/scripts/bind-conta-sandbox-invoice-draft-lineno.py
           php -l app/Config.php
           php -l .github/scripts/conta-sandbox-invoice-draft-one-call.php
           php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) { fwrite(STDERR,"numeric_org_allowlist_regression\n"); exit(1); } echo "NUMERIC_ORGANIZATION_ALLOWLIST_REGRESSION_PASSED=true\n";'
