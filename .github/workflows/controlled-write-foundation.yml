@@ -24,6 +24,23 @@ jobs:
         run: php tests/controlled-write-foundation.php
       - name: Remaining control path tests
         run: php tests/remaining-control-paths.php
+      - name: Validate sandbox retry runtime patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          mkdir -p "$tmp/repo"
+          cp -a . "$tmp/repo/"
+          cd "$tmp/repo"
+          python3 .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
+          php -l app/Config.php
+          php -l .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "PROVIDER_ERROR_BODY_SHA256" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "PROVIDER_ERROR_TOP_LEVEL_KEYS" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "PROVIDER_ERROR_KEY_PATHS" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) exit(1);'
+          echo "SANDBOX_RETRY_RUNTIME_PATCH_VALIDATION_PASSED=true"
       - name: Verify examples remain fail-closed
         run: |
           php -r '$j=json_decode(file_get_contents("config/write-kill-switch.example.json"),true); if (($j["globalBlocked"] ?? null) !== true) exit(1);'
