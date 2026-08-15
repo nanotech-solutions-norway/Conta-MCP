@@ -72,7 +72,7 @@ jobs:
           (cd artifact/source && zip -qr ../Conta_MCP_Remaining_Control_Paths_Source.zip .)
           sha256sum artifact/Conta_MCP_Remaining_Control_Paths_Source.zip artifact/IMPLEMENTATION_SUMMARY.md > artifact/SHA256.txt
       - name: Upload implementation evidence artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: conta-mcp-remaining-control-paths
           path: artifact/
