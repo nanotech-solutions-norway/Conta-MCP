@@ -42,6 +42,70 @@ if packet_anchor not in text:
     raise SystemExit('authorization_packet_patch_anchor_missing')
 text = text.replace(packet_anchor, packet_replacement, 1)
 
+# Add redacted diagnostics for provider-side validation/client errors. The raw
+# response body is never printed. We emit only a body hash, JSON key names, and
+# selected scalar error fields after masking identifiers, emails and long numbers.
+diagnostic_anchor = "\n// A created-but-unverified object is still retained as evidence; fail the job so no success is inferred.\n"
+if diagnostic_anchor not in text:
+    raise SystemExit('provider_diagnostic_patch_anchor_missing')
+
+diagnostic_block = r'''
+$providerBody = is_array($result) ? ($result['body'] ?? null) : null;
+if ($providerStatus >= 400 && $providerBody !== null) {
+    $providerBodyEncoded = is_string($providerBody)
+        ? $providerBody
+        : json_encode($providerBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+    if (is_string($providerBodyEncoded)) {
+        echo 'PROVIDER_ERROR_BODY_SHA256=' . hash('sha256', $providerBodyEncoded) . PHP_EOL;
+    }
+
+    if (is_array($providerBody)) {
+        $topKeys = array_map('strval', array_keys($providerBody));
+        sort($topKeys, SORT_STRING);
+        echo 'PROVIDER_ERROR_TOP_LEVEL_KEYS=' . implode(',', array_slice($topKeys, 0, 20)) . PHP_EOL;
+
+        $keyPaths = [];
+        $collectKeyPaths = function (mixed $node, string $prefix = '') use (&$collectKeyPaths, &$keyPaths): void {
+            if (!is_array($node) || count($keyPaths) >= 40) {
+                return;
+            }
+            foreach ($node as $key => $value) {
+                if (count($keyPaths) >= 40) {
+                    break;
+                }
+                $keyString = (string) $key;
+                $path = $prefix === '' ? $keyString : $prefix . '.' . $keyString;
+                $keyPaths[] = $path;
+                if (is_array($value)) {
+                    $collectKeyPaths($value, $path);
+                }
+            }
+        };
+        $collectKeyPaths($providerBody);
+        $safePaths = array_map(
+            static fn(string $value): string => preg_replace('/[^a-zA-Z0-9_.\-\[\]]/', '_', $value) ?? '',
+            $keyPaths
+        );
+        echo 'PROVIDER_ERROR_KEY_PATHS=' . implode(',', $safePaths) . PHP_EOL;
+
+        foreach (['error', 'code', 'type', 'name', 'title', 'message', 'detail', 'errorMessage', 'exception'] as $key) {
+            if (!array_key_exists($key, $providerBody) || !is_scalar($providerBody[$key])) {
+                continue;
+            }
+            $value = trim((string) $providerBody[$key]);
+            $value = str_replace([$organizationId, $customerId], '[redacted-id]', $value);
+            $value = preg_replace('/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', '[redacted-email]', $value) ?? $value;
+            $value = preg_replace('/\b\d{3,}\b/', '[redacted-number]', $value) ?? $value;
+            $value = preg_replace('/[\r\n\t]+/', ' ', $value) ?? $value;
+            $value = substr($value, 0, 240);
+            $safeKey = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '_', $key) ?? $key);
+            echo 'PROVIDER_ERROR_' . $safeKey . '=' . $value . PHP_EOL;
+        }
+    }
+}
+'''
+text = text.replace(diagnostic_anchor, "\n" + diagnostic_block + diagnostic_anchor, 1)
+
 path.write_text(text, encoding='utf-8')
 
 # Preserve numeric organization IDs as strings in the sandbox write allowlist.
@@ -58,5 +122,6 @@ config_path.write_text(config_text, encoding='utf-8')
 
 print('RUNTIME_COMPATIBILITY_PATCH_APPLIED=true')
 print('NUMERIC_ORGANIZATION_ALLOWLIST_PATCH_APPLIED=true')
+print('PROVIDER_ERROR_DIAGNOSTICS_PATCH_APPLIED=true')
 print('RETRY_SERIES_AUTHORIZED=true')
 print('PER_ATTEMPT_PROVIDER_MUTATION_LIMIT=1')
