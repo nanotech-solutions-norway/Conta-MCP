@@ -1,0 +1,170 @@
+name: Conta Fail-Closed Deployment Candidate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/conta-fail-closed-deployment-candidate.yml'
+      - 'app/**'
+      - 'config/tool_policy.php'
+      - 'tests/**'
+      - 'docs/rollout/INVOICE_DRAFT_CONTINUATION_AUTHORIZATION_20260816.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/conta-fail-closed-deployment-candidate.yml'
+      - 'app/**'
+      - 'config/tool_policy.php'
+      - 'tests/**'
+      - 'docs/rollout/INVOICE_DRAFT_CONTINUATION_AUTHORIZATION_20260816.md'
+
+permissions:
+  contents: read
+
+jobs:
+  build-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+
+      - name: Validate protected-runtime scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            app/ApprovalEnvelopeVerifier.php
+            app/AuditLogger.php
+            app/bootstrap.php
+            app/Config.php
+            app/ContaClient.php
+            app/ContaTools.php
+            app/HttpClient.php
+            app/InvoiceDraftPreview.php
+            app/InvoiceDraftReadbackVerifier.php
+            app/McpServer.php
+            app/ReleaseManifestGuard.php
+            app/SandboxAuthorizationGate.php
+            app/Security.php
+            app/WriteDispatchPermit.php
+            app/WriteExecutionLedger.php
+            app/WriteKillSwitch.php
+            app/WritePolicy.php
+            config/tool_policy.php
+          )
+          [[ "${#files[@]}" -eq 18 ]]
+          for f in "${files[@]}"; do
+            [[ -f "$f" ]] || { echo "Missing deployment file: $f" >&2; exit 1; }
+          done
+          printf '%s\n' "${files[@]}" > "$RUNNER_TEMP/protected-runtime-files.txt"
+          echo "DEPLOYMENT_SCOPE_FILE_COUNT=${#files[@]}"
+          echo "DEPLOYMENT_SCOPE_VALIDATED=true"
+
+      - name: PHP syntax and control tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r f; do php -l "$f"; done < "$RUNNER_TEMP/protected-runtime-files.txt"
+          php tests/controlled-write-foundation.php
+          php tests/invoice-draft-readback-verifier.php
+          php tests/remaining-control-paths.php
+          echo "DEPLOYMENT_CANDIDATE_PHP_LINT_PASSED=true"
+          echo "DEPLOYMENT_CANDIDATE_CONTROL_TESTS_PASSED=true"
+
+      - name: Verify fail-closed production defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+            require "app/Config.php";
+            $c = new Config([
+              "environment" => "production",
+              "enable_write_preview" => true,
+              "enable_write_tools" => false,
+              "runtime_write_blocked" => true,
+              "execution_allowed" => false,
+              "production_write_approved" => false,
+              "allowed_write_organization_ids" => [],
+              "allowed_write_actions" => [],
+              "create_invoice_draft_route" => "",
+              "readback_invoice_draft_route" => "",
+            ]);
+            if ($c->environment() !== "production") exit(1);
+            if (!$c->writePreviewEnabled()) exit(2);
+            if ($c->writeToolsEnabled()) exit(3);
+            if (!$c->runtimeWriteBlocked()) exit(4);
+            if ($c->executionAllowed()) exit(5);
+            if ($c->productionWriteApproved()) exit(6);
+            if ($c->allowedWriteOrganizationIds() !== []) exit(7);
+            if ($c->allowedWriteActions() !== []) exit(8);
+            if ($c->createInvoiceDraftRoute() !== "") exit(9);
+            if ($c->readbackInvoiceDraftRoute() !== "") exit(10);
+          '
+          php -r '$j=json_decode(file_get_contents("config/write-kill-switch.example.json"),true); if (($j["globalBlocked"] ?? null) !== true) exit(1);'
+          php -r '$j=json_decode(file_get_contents("config/sandbox-authorization.example.json"),true); if (($j["status"] ?? null) !== "PENDING_OPERATOR_VALIDATION") exit(1);'
+          echo "FAIL_CLOSED_PRODUCTION_DEFAULTS_VERIFIED=true"
+          echo "PRODUCTION_WRITE_AUTHORIZED=false"
+
+      - name: Scan deployment payload for secret-bearing files and obvious credential material
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eiq 'conta_config\.local\.php|\.env|storage/(audit|write-ledger|sandbox-authorization)' "$RUNNER_TEMP/protected-runtime-files.txt"; then
+            echo "Forbidden runtime-state path in deployment scope." >&2
+            exit 1
+          fi
+          if xargs -a "$RUNNER_TEMP/protected-runtime-files.txt" grep -EnI '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|apiKey[[:space:]]*[=:][[:space:]]*[A-Za-z0-9_\-]{20,}|Bearer[[:space:]]+[A-Za-z0-9._\-]{20,})'; then
+            echo "Potential credential material detected in deployment payload." >&2
+            exit 1
+          fi
+          echo "DEPLOYMENT_CANDIDATE_SECRET_SCAN_PASSED=true"
+
+      - name: Build immutable protected-runtime artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          short="${GITHUB_SHA:0:12}"
+          root="$RUNNER_TEMP/conta-deployment-candidate-$short"
+          mkdir -p "$root/payload" "$root/evidence"
+          while IFS= read -r f; do
+            mkdir -p "$root/payload/$(dirname "$f")"
+            cp "$f" "$root/payload/$f"
+          done < "$RUNNER_TEMP/protected-runtime-files.txt"
+          (
+            cd "$root/payload"
+            find . -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > "$root/evidence/file-sha256.txt"
+          cp "$RUNNER_TEMP/protected-runtime-files.txt" "$root/evidence/path-set.txt"
+          cat > "$root/evidence/candidate-state.txt" <<EOF
+          repository=${GITHUB_REPOSITORY}
+          source_commit=${GITHUB_SHA}
+          protected_runtime_root=/Custom Models/conta-mcp
+          public_document_root=www/cm
+          payload_file_count=18
+          enable_write_tools=false
+          runtime_write_blocked=true
+          execution_allowed=false
+          production_write_approved=false
+          kill_switch_global_blocked=true
+          production_write_authorized=false
+          provider_mutation_performed=false
+          EOF
+          (cd "$root/payload" && zip -qr "$root/Conta_MCP_Protected_Runtime_${short}.zip" .)
+          sha256sum "$root/Conta_MCP_Protected_Runtime_${short}.zip" > "$root/evidence/artifact-sha256.txt"
+          tar -C "$root" -czf "$RUNNER_TEMP/Conta_MCP_Fail_Closed_Deployment_Candidate_${short}.tar.gz" .
+          echo "DEPLOYMENT_CANDIDATE_SOURCE_COMMIT=$GITHUB_SHA"
+          echo "DEPLOYMENT_CANDIDATE_FILE_COUNT=18"
+          echo "DEPLOYMENT_CANDIDATE_BUILT=true"
+          echo "PROVIDER_MUTATION_PERFORMED=false"
+          echo "PRODUCTION_WRITE_AUTHORIZED=false"
+
+      - name: Upload deployment candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: conta-fail-closed-deployment-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/Conta_MCP_Fail_Closed_Deployment_Candidate_*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
