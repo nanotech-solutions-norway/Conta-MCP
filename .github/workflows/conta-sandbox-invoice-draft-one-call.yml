@@ -1,29 +1,24 @@
-name: Conta Sandbox Invoice Draft Retry Until Complete
+name: Conta Sandbox Invoice Draft Controlled Validation
 
 on:
   workflow_dispatch:
     inputs:
       authorization:
-        description: 'Type APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE exactly'
+        description: 'Type APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_CONTROLLED_VALIDATION exactly'
         required: true
         type: string
-  push:
-    branches: [main]
-    paths:
-      - 'docs/rollout/SANDBOX_INVOICE_DRAFT_RETRY_AUTHORIZATION_20260814.md'
-      - 'docs/rollout/SANDBOX_INVOICE_DRAFT_RETRY_CONTINUATION_20260815.md'
 
 permissions:
   contents: read
 
 concurrency:
-  group: conta-sandbox-invoice-draft-retry-until-complete
+  group: conta-sandbox-invoice-draft-controlled-validation
   cancel-in-progress: false
 
 jobs:
   execute-authorized-retry-series:
-    name: Execute authorized sandbox invoice draft until complete
-    if: ${{ github.event_name == 'push' || inputs.authorization == 'APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE' }}
+    name: Execute authorized sandbox invoice draft validation
+    if: ${{ inputs.authorization == 'APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_CONTROLLED_VALIDATION' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: conta-sandbox-secrets
@@ -38,7 +33,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify retry-until-complete authorization boundary
+      - name: Verify controlled-validation authorization boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -46,21 +41,24 @@ jobs:
           [[ "$CONTA_API_BASE_URL" == "https://api.gateway.conta-sandbox.no" ]] || { echo "Unexpected Conta API base URL." >&2; exit 1; }
           [[ -n "${CONTA_API_KEY:-}" ]] || { echo "Missing protected Conta API key." >&2; exit 1; }
           [[ "$CONTA_ORG_ID" =~ ^[0-9]+$ ]] || { echo "Invalid protected organization identifier." >&2; exit 1; }
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            [[ "${{ inputs.authorization }}" == "APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE" ]] || { echo "Exact manual dispatch authorization token missing." >&2; exit 1; }
-          fi
-          echo "RETRY_UNTIL_COMPLETE_AUTHORIZATION_BOUNDARY=true"
+          [[ "${{ inputs.authorization }}" == "APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_CONTROLLED_VALIDATION" ]] || { echo "Exact manual dispatch authorization token missing." >&2; exit 1; }
+          echo "CONTROLLED_VALIDATION_AUTHORIZATION_BOUNDARY=true"
           echo "PRODUCTION_WRITE_AUTHORIZED=false"
 
-      - name: Apply observed sandbox compatibility patches
+      - name: Validate baked sandbox harness
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/prepare-conta-sandbox-invoice-draft-retry.py
-          python3 .github/scripts/bind-conta-sandbox-invoice-draft-lineno.py
           php -l app/Config.php
           php -l .github/scripts/conta-sandbox-invoice-draft-one-call.php
-          php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) { fwrite(STDERR,"numeric_org_allowlist_regression\n"); exit(1); } echo "NUMERIC_ORGANIZATION_ALLOWLIST_REGRESSION_PASSED=true\n";'
+          grep -q "const EXPECTED_PAYLOAD_SHA256 = '79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7';" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "'vatCode' => 'high'" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "'lineNo' => 1" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "PROVIDER_ERROR_BODY_SHA256" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "PROVIDER_ERROR_TOP_LEVEL_KEYS" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          grep -q "PROVIDER_ERROR_KEY_PATHS" .github/scripts/conta-sandbox-invoice-draft-one-call.php
+          php -r 'require "app/Config.php"; $c=new Config(["allowed_write_organization_ids"=>["123456789","123456789"]]); $v=$c->allowedWriteOrganizationIds(); if ($v !== ["123456789"] || !is_string($v[0])) { fwrite(STDERR,"numeric_org_allowlist_regression\n"); exit(1); } echo "NUMERIC_ORGANIZATION_ALLOWLIST_REGRESSION_PASSED=true\n";'
+          echo "BAKED_SANDBOX_HARNESS_VALIDATED=true"
 
       - name: Retry authorized sandbox invoice draft until complete
         shell: bash
@@ -108,8 +106,6 @@ jobs:
               exit "$code"
             fi
 
-            # Deterministic client/auth/business-rule failures are not transient. In particular,
-            # HTTP 422 must never be retried merely because GET post-state proves no object exists.
             if [[ "$provider_status" =~ ^4[0-9][0-9]$ && "$provider_status" != "429" ]]; then
               echo "RETRY_TERMINAL_PROVIDER_4XX=true" >&2
               echo "PROVIDER_4XX_STATUS=$provider_status" >&2
@@ -117,7 +113,6 @@ jobs:
               exit "$code"
             fi
 
-            # Read-only/pre-dispatch failures can retry because no provider mutation was reserved.
             if [[ "$ledger_reserved" != "true" ]] && grep -Eq 'invoice_draft_prestate_(unrecognized|not_json|get_failed_http_)|synthetic_customer_(search_failed|exact_match_count_|readback_failed|identity_mismatch)|PRIMARY_ERROR_CLASS=(write_organization_not_allowlisted|write_action_not_allowlisted|write_route_not_allowlisted|approval_|sandbox_authorization_|write_dispatch_|release_manifest_|write_tools_|runtime_write_|execution_)' "$log"; then
               if [[ "$attempt" -ge "$max_attempts" ]]; then
                 echo "RETRY_MAX_ATTEMPTS_REACHED=true" >&2
@@ -130,8 +125,6 @@ jobs:
               continue
             fi
 
-            # A provider retry is permitted only for explicit throttling or server-side failures,
-            # and only after GET post-state definitively proves that no draft exists.
             if [[ "$execution_outcome" == "FAILED_NO_OBJECT_OBSERVED_BY_POSTSTATE_GET" ]] && { [[ "$provider_status" == "429" ]] || [[ "$provider_status" =~ ^5[0-9][0-9]$ ]]; }; then
               if [[ "$attempt" -ge "$max_attempts" ]]; then
                 echo "RETRY_MAX_ATTEMPTS_REACHED=true" >&2
