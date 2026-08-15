@@ -3,23 +3,23 @@
 ## Classification
 
 ```text
-GET_ONLY_DIAGNOSTIC_COMPLETE=true
+GET_ONLY_DIAGNOSTIC_PARTIAL=true
 SANDBOX_ORG_ACTIVE=true
 SANDBOX_ORG_BLOCKED=false
 BOOKKEEPING_ENABLED=true
 PRODUCT_VAT_HISTORY_PRESENT=false
 INVOICE_VAT_HISTORY_PRESENT=false
-ACTIVE_BOOKKEEPING_VAT_CODE_OCCURRENCES=20
-ACTIVE_BOOKKEEPING_VAT_CODES_RAW=input.no.vat
-OBSERVED_ORG_INVOICE_VAT_CODES=no.vat
-OUTPUT_VAT_CODE_OBSERVED=false
+UNSCOPED_BOOKKEEPING_PAGE_VAT_CODE_OCCURRENCES=20
+UNSCOPED_BOOKKEEPING_PAGE_VAT_CODES_RAW=input.no.vat
+BOOKKEEPING_SCOPE_COMPLETE=false
+OUTPUT_VAT_CODE_ABSENCE_PROVEN=false
 PROVIDER_MUTATION_PERFORMED=false
 PRODUCTION_WRITE_AUTHORIZED=false
 INVOICE_DRAFT_POST_AUTHORIZED=false
-CURRENT_BLOCKER=SANDBOX_ORGANIZATION_VAT_CONFIGURATION
+CURRENT_BLOCKER=SALES_ACCOUNT_VAT_CAPABILITY_NOT_YET_OBSERVED
 ```
 
-## Evidence
+## Evidence from protected run #2
 
 Protected workflow:
 - `Conta Sandbox VAT Capability Diagnostic`
@@ -50,18 +50,29 @@ PROVIDER_MUTATION_PERFORMED=false
 PRODUCTION_WRITE_AUTHORIZED=false
 ```
 
-## Interpretation
+## Corrected interpretation
 
-The sandbox organization is accessible, active, not blocked, and has bookkeeping capability. It contains no product or invoice VAT history. Its active bookkeeping configuration exposes only `input.no.vat`; no output VAT code was observed.
+The sandbox organization is accessible, active, not blocked, and has bookkeeping capability. It contains no product or invoice VAT history in the queried first pages.
 
-Previous bounded invoice-draft attempts with route-level VAT codes `no.vat` and `high` both terminated with HTTP 422 `WrongVatCodeException`, with mandatory GET reconciliation proving that no invoice draft existed after each failed attempt.
+Run #2 also returned exactly 20 VAT-code occurrences from the bookkeeping-account endpoint, all `input.no.vat`. However, that request did not explicitly set paging parameters and did not restrict the bookkeeping account range to sales/revenue accounts. Therefore those 20 observations are an unscoped/default-page sample and do **not** prove that the organization lacks output VAT codes.
 
-Conta's current external API contract defines the invoice-route VAT tokens `no.vat`, `high`, `medium`, `low`, `zero.rate`, `exempted`, and `export`. The same contract defines `WrongVatCodeException` as the condition where an organization attempts to use a VAT code not available for that organization type.
+The earlier interpretation that the sandbox organization's VAT configuration itself was conclusively the blocker is superseded by this correction. No sandbox business setting change should be made on the basis of run #2 alone.
 
-Therefore no further invoice-draft POST is authorized until the sandbox organization's invoice/VAT configuration is explicitly corrected or Conta confirms which invoice-route VAT token is valid for this organization state.
+Previous bounded invoice-draft attempts with route-level VAT codes `no.vat` and `high` both terminated with HTTP 422 `WrongVatCodeException`, with mandatory GET reconciliation proving that no invoice draft existed after each failed attempt. Those failures remain valid evidence, but they do not identify which output VAT code—if any—is configured for the organization's sales accounts.
+
+Conta's current external API contract defines invoice-route VAT tokens and exposes paged bookkeeping-account reads with account-number range filters. The next diagnostic therefore scopes the provider read to active bookkeeping accounts in the 3000–3999 sales/revenue range and uses explicit paging.
 
 ## Required next gate
 
-Perform a sandbox-only business/invoice VAT configuration review in the Conta web application. Do not alter production configuration. Determine whether the sandbox business is intended to issue regular/non-tax invoices or VAT invoices and configure the sandbox business consistently. After that change, repeat the protected GET-only VAT capability diagnostic before generating a new payload hash or performing another invoice-draft POST.
+Run the corrected protected GET-only VAT capability diagnostic and inspect:
 
-No global write enablement and no production write are authorized by this record.
+```text
+SALES_BOOKKEEPING_ACCOUNTS_GET_STATUS
+ACTIVE_SALES_BOOKKEEPING_VAT_CODE_OCCURRENCES
+ACTIVE_SALES_BOOKKEEPING_OUTPUT_VAT_CODE_OCCURRENCES
+ACTIVE_SALES_BOOKKEEPING_VAT_CODES_RAW
+ACTIVE_SALES_BOOKKEEPING_VAT_CODES_INVOICE_FORM
+OBSERVED_ORG_INVOICE_VAT_CODES
+```
+
+Only `output.*` bookkeeping VAT codes from the scoped sales-account result are converted into invoice-route candidates. No invoice-draft POST, sandbox configuration change, global write enablement, or production write is authorized until this read-only gate completes.
