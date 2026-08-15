@@ -25,7 +25,7 @@ jobs:
     name: Execute authorized sandbox invoice draft until complete
     if: ${{ github.event_name == 'push' || inputs.authorization == 'APPROVE_CONTA_SANDBOX_INVOICE_DRAFT_RETRY_UNTIL_COMPLETE' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     environment: conta-sandbox-secrets
     env:
       CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
@@ -67,7 +67,9 @@ jobs:
           set -euo pipefail
           umask 077
           attempt=0
-          while true; do
+          max_attempts=3
+
+          while [[ "$attempt" -lt "$max_attempts" ]]; do
             attempt=$((attempt + 1))
             echo "RETRY_ATTEMPT=$attempt"
             log="$RUNNER_TEMP/conta-invoice-draft-retry-${attempt}.log"
@@ -86,6 +88,12 @@ jobs:
             fi
 
             ledger_reserved="$(grep -E '^LEDGER_RESERVED=' "$log" | tail -1 | cut -d= -f2 || true)"
+            provider_status="$(grep -E '^PROVIDER_RESULT_STATUS=' "$log" | tail -1 | cut -d= -f2 || true)"
+            execution_outcome="$(grep -E '^EXECUTION_OUTCOME=' "$log" | tail -1 | cut -d= -f2 || true)"
+
+            echo "RETRY_CLASSIFICATION_LEDGER_RESERVED=${ledger_reserved:-unknown}"
+            echo "RETRY_CLASSIFICATION_PROVIDER_STATUS=${provider_status:-unknown}"
+            echo "RETRY_CLASSIFICATION_OUTCOME=${execution_outcome:-unknown}"
 
             if grep -Eq 'invoice_draft_prestate_not_empty|SUCCEEDED_OBJECT_OBSERVED_UNVERIFIED|SUCCEEDED_OBJECT_OBSERVED_BY_POSTSTATE_GET_UNVERIFIED|same_key_replay_was_not_rejected' "$log"; then
               echo "RETRY_TERMINAL_SAFETY_STOP=true" >&2
@@ -99,10 +107,36 @@ jobs:
               exit "$code"
             fi
 
-            if grep -Eq 'FAILED_NO_OBJECT_OBSERVED_BY_POSTSTATE_GET|invoice_draft_prestate_(unrecognized|not_json|get_failed_http_)|synthetic_customer_(search_failed|exact_match_count_|readback_failed|identity_mismatch)' "$log" || \
-               { [[ "$ledger_reserved" == "false" ]] && grep -Eq 'PRIMARY_ERROR_CLASS=(write_organization_not_allowlisted|write_action_not_allowlisted|write_route_not_allowlisted|approval_|sandbox_authorization_|write_dispatch_|release_manifest_|write_tools_|runtime_write_|execution_)' "$log"; }; then
+            # Deterministic client/auth/business-rule failures are not transient. In particular,
+            # HTTP 422 must never be retried merely because GET post-state proves no object exists.
+            if [[ "$provider_status" =~ ^4[0-9][0-9]$ && "$provider_status" != "429" ]]; then
+              echo "RETRY_TERMINAL_PROVIDER_4XX=true" >&2
+              echo "PROVIDER_4XX_STATUS=$provider_status" >&2
+              echo "No further provider mutation will be attempted until the request/entitlement error is diagnosed and corrected." >&2
+              exit "$code"
+            fi
+
+            # Read-only/pre-dispatch failures can retry because no provider mutation was reserved.
+            if [[ "$ledger_reserved" != "true" ]] && grep -Eq 'invoice_draft_prestate_(unrecognized|not_json|get_failed_http_)|synthetic_customer_(search_failed|exact_match_count_|readback_failed|identity_mismatch)|PRIMARY_ERROR_CLASS=(write_organization_not_allowlisted|write_action_not_allowlisted|write_route_not_allowlisted|approval_|sandbox_authorization_|write_dispatch_|release_manifest_|write_tools_|runtime_write_|execution_)' "$log"; then
+              if [[ "$attempt" -ge "$max_attempts" ]]; then
+                echo "RETRY_MAX_ATTEMPTS_REACHED=true" >&2
+                exit "$code"
+              fi
               delay=$((attempt * 5))
-              if [[ "$delay" -gt 30 ]]; then delay=30; fi
+              echo "SAFE_RETRY_CONFIRMED=true"
+              echo "RETRY_DELAY_SECONDS=$delay"
+              sleep "$delay"
+              continue
+            fi
+
+            # A provider retry is permitted only for explicit throttling or server-side failures,
+            # and only after GET post-state definitively proves that no draft exists.
+            if [[ "$execution_outcome" == "FAILED_NO_OBJECT_OBSERVED_BY_POSTSTATE_GET" ]] && { [[ "$provider_status" == "429" ]] || [[ "$provider_status" =~ ^5[0-9][0-9]$ ]]; }; then
+              if [[ "$attempt" -ge "$max_attempts" ]]; then
+                echo "RETRY_MAX_ATTEMPTS_REACHED=true" >&2
+                exit "$code"
+              fi
+              delay=$((attempt * 5))
               echo "SAFE_RETRY_CONFIRMED=true"
               echo "RETRY_DELAY_SECONDS=$delay"
               sleep "$delay"
@@ -110,6 +144,9 @@ jobs:
             fi
 
             echo "RETRY_UNCLASSIFIED_FAILURE_SAFETY_STOP=true" >&2
-            echo "Failure was not proven safe for another provider mutation." >&2
+            echo "Failure was not proven transient and safe for another provider mutation." >&2
             exit "$code"
           done
+
+          echo "RETRY_MAX_ATTEMPTS_REACHED=true" >&2
+          exit 1
