@@ -107,14 +107,67 @@ jobs:
           echo "INVOICE_VAT_CODES_OBSERVED=${codes:-none}"
           echo "invoice_codes=${codes}" >> "$GITHUB_OUTPUT"
 
+      - name: Inspect active bookkeeping-account VAT codes with GET only
+        id: bookkeeping
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          out="$RUNNER_TEMP/conta-bookkeeping-accounts.json"
+          trap 'rm -f -- "$out"' EXIT
+          status=$(curl --silent --show-error --request GET \
+            --output "$out" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/accounting/organizations/${CONTA_ORG_ID}/bookkeeping-accounts")
+
+          echo "BOOKKEEPING_ACCOUNTS_GET_STATUS=${status:-unavailable}"
+          if [[ "$status" == "200" ]]; then
+            active_codes=$(jq -r '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string")] | unique | sort | join(",")' "$out")
+            active_count=$(jq '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string")] | length' "$out")
+            invoice_codes=$(jq -r '[.[]? | select(.isActive == true) | .vatCode? | select(type=="string") | if . == "input.no.vat" or . == "output.no.vat" then "no.vat" elif startswith("output.") then sub("^output\\.";"") else empty end] | unique | sort | join(",")' "$out")
+            echo "ACTIVE_BOOKKEEPING_VAT_CODE_OCCURRENCES=$active_count"
+            echo "ACTIVE_BOOKKEEPING_VAT_CODES_RAW=${active_codes:-none}"
+            echo "ACTIVE_BOOKKEEPING_VAT_CODES_INVOICE_FORM=${invoice_codes:-none}"
+            echo "invoice_codes=${invoice_codes}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ACTIVE_BOOKKEEPING_VAT_CODE_OCCURRENCES=unavailable"
+            echo "ACTIVE_BOOKKEEPING_VAT_CODES_RAW=unavailable"
+            echo "ACTIVE_BOOKKEEPING_VAT_CODES_INVOICE_FORM=unavailable"
+            echo "invoice_codes=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Inspect subscription capability with GET only
+        id: subscription
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          out="$RUNNER_TEMP/conta-subscription-plan.json"
+          trap 'rm -f -- "$out"' EXIT
+          status=$(curl --silent --show-error --request GET \
+            --output "$out" --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" --header 'Accept: application/json' \
+            --connect-timeout 15 --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/subscription-plan")
+
+          echo "SUBSCRIPTION_PLAN_GET_STATUS=${status:-unavailable}"
+          if [[ "$status" == "200" ]]; then
+            allow_bookkeeping=$(jq -r 'if (.allowedFeatures // []) | index("ALLOW_BOOKKEEPING") then "true" else "false" end' "$out")
+            echo "SUBSCRIPTION_ALLOW_BOOKKEEPING=$allow_bookkeeping"
+          else
+            echo "SUBSCRIPTION_ALLOW_BOOKKEEPING=unavailable"
+          fi
+
       - name: Summarize GET-only VAT capability evidence
         shell: bash
         env:
           PRODUCT_CODES: ${{ steps.products.outputs.invoice_codes }}
           INVOICE_CODES: ${{ steps.invoices.outputs.invoice_codes }}
+          BOOKKEEPING_CODES: ${{ steps.bookkeeping.outputs.invoice_codes }}
         run: |
           set -euo pipefail
-          combined=$(printf '%s\n%s\n' "$PRODUCT_CODES" "$INVOICE_CODES" | tr ',' '\n' | sed '/^$/d' | sort -u | paste -sd, -)
+          combined=$(printf '%s\n%s\n%s\n' "$PRODUCT_CODES" "$INVOICE_CODES" "$BOOKKEEPING_CODES" | tr ',' '\n' | sed '/^$/d' | sort -u | paste -sd, -)
           echo "OBSERVED_ORG_INVOICE_VAT_CODES=${combined:-none}"
           echo "PROVIDER_HTTP_METHODS_USED=GET_ONLY"
           echo "PROVIDER_MUTATION_PERFORMED=false"
@@ -125,5 +178,5 @@ jobs:
             echo "- Provider HTTP methods used: GET only."
             echo "- Provider mutation performed: false."
             echo "- Production write authorized: false."
-            echo "- Observed invoice-form VAT codes from existing sandbox records: ${combined:-none}."
+            echo "- Observed invoice-form VAT codes from existing sandbox records and active bookkeeping configuration: ${combined:-none}."
           } >> "$GITHUB_STEP_SUMMARY"
