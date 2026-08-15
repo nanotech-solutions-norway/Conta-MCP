@@ -54,6 +54,57 @@ function printSafeFieldDiagnostic(string $path, mixed $expected, mixed $actual, 
     }
 }
 
+function collectExactNamedObjects(mixed $node, string $name, array &$matches): void
+{
+    if (!is_array($node)) {
+        return;
+    }
+
+    if (($node['name'] ?? null) === $name && isset($node['id']) && is_scalar($node['id'])) {
+        $id = trim((string) $node['id']);
+        if ($id !== '') {
+            $matches[$id] = $node;
+        }
+    }
+
+    foreach ($node as $child) {
+        if (is_array($child)) {
+            collectExactNamedObjects($child, $name, $matches);
+        }
+    }
+}
+
+function printSafeHttpDiagnostic(string $prefix, array $result): void
+{
+    $safePrefix = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '_', $prefix) ?? $prefix);
+    echo $safePrefix . '_STATUS=' . (string) ($result['status'] ?? 0) . PHP_EOL;
+    $body = $result['body'] ?? null;
+
+    $encoded = is_string($body)
+        ? $body
+        : json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+
+    if (is_string($encoded)) {
+        echo $safePrefix . '_BODY_SHA256=' . hash('sha256', $encoded) . PHP_EOL;
+    }
+
+    if (is_array($body)) {
+        $keys = array_map('strval', array_keys($body));
+        sort($keys, SORT_STRING);
+        echo $safePrefix . '_TOP_LEVEL_KEYS=' . implode(',', array_slice($keys, 0, 20)) . PHP_EOL;
+
+        foreach (['name', 'category', 'code', 'type', 'title', 'message', 'detail', 'error'] as $key) {
+            if (!array_key_exists($key, $body) || !is_scalar($body[$key])) {
+                continue;
+            }
+            $value = preg_replace('/[\r\n\t]+/', ' ', trim((string) $body[$key])) ?? '';
+            $value = preg_replace('/\b\d{3,}\b/', '[redacted-number]', $value) ?? $value;
+            $value = preg_replace('/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', '[redacted-email]', $value) ?? $value;
+            echo $safePrefix . '_' . strtoupper($key) . '=' . substr($value, 0, 240) . PHP_EOL;
+        }
+    }
+}
+
 $environment = envRequired('CONTA_ENVIRONMENT');
 $baseUrl = rtrim(envRequired('CONTA_API_BASE_URL'), '/');
 $apiKey = envRequired('CONTA_API_KEY');
@@ -70,7 +121,8 @@ $http = new HttpClient();
 $headers = ['apiKey' => $apiKey, 'Accept' => 'application/json'];
 $org = rawurlencode($organizationId);
 
-// Resolve the same protected synthetic customer via GET only.
+// Resolve the exact protected synthetic customer using the same recursive matching
+// strategy as the successful controlled-write script. This is GET only.
 $customerSearchUrl = $baseUrl . '/invoice/organizations/' . $org . '/customers?' . http_build_query([
     'q' => FIXTURE_NAME,
     'hits' => 100,
@@ -78,67 +130,66 @@ $customerSearchUrl = $baseUrl . '/invoice/organizations/' . $org . '/customers?'
 ]);
 $customerSearch = $http->request('GET', $customerSearchUrl, $headers, null, 30);
 if (($customerSearch['ok'] ?? false) !== true || !is_array($customerSearch['body'] ?? null)) {
+    printSafeHttpDiagnostic('customer_search', $customerSearch);
     throw new RuntimeException('synthetic_customer_search_failed');
 }
-
-$customerHits = $customerSearch['body']['hits'] ?? $customerSearch['body'];
-if (!is_array($customerHits)) {
-    throw new RuntimeException('synthetic_customer_search_unrecognized');
-}
 $customerMatches = [];
-foreach ($customerHits as $candidate) {
-    if (!is_array($candidate)) {
-        continue;
-    }
-    if (($candidate['name'] ?? null) === FIXTURE_NAME && isset($candidate['id']) && is_scalar($candidate['id'])) {
-        $customerMatches[] = $candidate;
-    }
-}
+collectExactNamedObjects($customerSearch['body'], FIXTURE_NAME, $customerMatches);
 if (count($customerMatches) !== 1) {
+    echo 'SYNTHETIC_CUSTOMER_EXACT_MATCH_COUNT=' . count($customerMatches) . PHP_EOL;
     throw new RuntimeException('synthetic_customer_exact_match_count_' . count($customerMatches));
 }
-$customerId = trim((string) $customerMatches[0]['id']);
+$customerId = (string) array_key_first($customerMatches);
 if (!preg_match('/^[0-9]+$/', $customerId)) {
     throw new RuntimeException('synthetic_customer_id_invalid');
 }
 
-// Search invoice drafts for this exact customer. The raw draft ID is never printed.
+// The pre-write run proved the sandbox invoice-draft collection was empty.
+// Exactly one provider POST was then executed and returned a draft ID.
+// Therefore reconcile from the full draft list using only the previously
+// proven search parameters; do not add customer/type/currency filters.
 $draftSearchUrl = $baseUrl . '/invoice/organizations/' . $org . '/invoice-drafts?' . http_build_query([
-    'customerId' => $customerId,
-    'type' => 'NORMAL',
-    'invoiceCurrency' => 'NOK',
     'hits' => 100,
     'page' => 0,
     'sort' => 'id',
 ]);
 $draftSearch = $http->request('GET', $draftSearchUrl, $headers, null, 30);
 if (($draftSearch['ok'] ?? false) !== true || !is_array($draftSearch['body'] ?? null)) {
+    printSafeHttpDiagnostic('invoice_draft_search', $draftSearch);
     throw new RuntimeException('invoice_draft_search_failed');
 }
+
 $draftSearchBody = $draftSearch['body'];
+$hitCount = is_numeric($draftSearchBody['hitCount'] ?? null)
+    ? (int) $draftSearchBody['hitCount']
+    : null;
 $draftHits = $draftSearchBody['hits'] ?? null;
-if (!is_array($draftHits)) {
-    throw new RuntimeException('invoice_draft_search_hits_missing');
+
+echo 'INVOICE_DRAFT_SEARCH_STATUS=' . (string) ($draftSearch['status'] ?? 0) . PHP_EOL;
+echo 'INVOICE_DRAFT_SEARCH_HIT_COUNT=' . ($hitCount === null ? 'unknown' : (string) $hitCount) . PHP_EOL;
+
+if ($hitCount !== 1) {
+    throw new RuntimeException('invoice_draft_search_expected_exactly_one_hit');
+}
+if (!is_array($draftHits) || count($draftHits) !== 1) {
+    if (is_array($draftSearchBody)) {
+        $keys = array_map('strval', array_keys($draftSearchBody));
+        sort($keys, SORT_STRING);
+        echo 'INVOICE_DRAFT_SEARCH_TOP_LEVEL_KEYS=' . implode(',', array_slice($keys, 0, 20)) . PHP_EOL;
+    }
+    throw new RuntimeException('invoice_draft_search_expected_one_hit_object');
 }
 
-echo 'INVOICE_DRAFT_SEARCH_HIT_COUNT=' . (is_numeric($draftSearchBody['hitCount'] ?? null) ? (string) (int) $draftSearchBody['hitCount'] : (string) count($draftHits)) . PHP_EOL;
-
-$targetDraftId = null;
-foreach ($draftHits as $candidate) {
-    if (!is_array($candidate) || !isset($candidate['id']) || !is_scalar($candidate['id'])) {
-        continue;
-    }
-    $candidateId = trim((string) $candidate['id']);
-    if (!preg_match('/^[0-9]+$/', $candidateId)) {
-        continue;
-    }
-    if (hash_equals(EXPECTED_DRAFT_ID_SHA256, hash('sha256', $candidateId))) {
-        $targetDraftId = $candidateId;
-        break;
-    }
+$candidate = $draftHits[0];
+if (!is_array($candidate) || !isset($candidate['id']) || !is_scalar($candidate['id'])) {
+    throw new RuntimeException('invoice_draft_search_candidate_id_missing');
 }
-if ($targetDraftId === null) {
-    throw new RuntimeException('expected_created_draft_not_found_by_id_hash');
+$targetDraftId = trim((string) $candidate['id']);
+if (!preg_match('/^[0-9]+$/', $targetDraftId)) {
+    throw new RuntimeException('invoice_draft_search_candidate_id_invalid');
+}
+if (!hash_equals(EXPECTED_DRAFT_ID_SHA256, hash('sha256', $targetDraftId))) {
+    throw new RuntimeException('expected_created_draft_id_hash_mismatch');
 }
 
 $readback = $http->request(
@@ -149,9 +200,11 @@ $readback = $http->request(
     30
 );
 if (($readback['ok'] ?? false) !== true || !is_array($readback['body'] ?? null)) {
+    printSafeHttpDiagnostic('created_draft_readback', $readback);
     throw new RuntimeException('created_draft_readback_failed');
 }
 $body = $readback['body'];
+
 if (!isset($body['id']) || !is_scalar($body['id']) || !hash_equals(EXPECTED_DRAFT_ID_SHA256, hash('sha256', (string) $body['id']))) {
     throw new RuntimeException('created_draft_identity_hash_mismatch');
 }
@@ -171,7 +224,11 @@ $expected = [
     'invoiceLanguage' => 'NO',
     'invoiceCurrency' => 'NOK',
 ];
-if (!hash_equals(EXPECTED_PAYLOAD_SHA256, InvoiceDraftPreview::payloadHash($expected))) {
+
+$expectedPayloadHash = InvoiceDraftPreview::payloadHash($expected);
+echo 'EXPECTED_PAYLOAD_SHA256=' . $expectedPayloadHash . PHP_EOL;
+echo 'EXPECTED_PAYLOAD_HASH_MATCH=' . (hash_equals(EXPECTED_PAYLOAD_SHA256, $expectedPayloadHash) ? 'true' : 'false') . PHP_EOL;
+if (!hash_equals(EXPECTED_PAYLOAD_SHA256, $expectedPayloadHash)) {
     throw new RuntimeException('expected_payload_hash_mismatch');
 }
 
@@ -183,6 +240,7 @@ echo 'EXPECTED_DRAFT_FOUND=true' . PHP_EOL;
 echo 'DRAFT_ID_SHA256=' . hash('sha256', $targetDraftId) . PHP_EOL;
 echo 'READBACK_VERIFIED=' . (($verification['verified'] ?? false) === true ? 'true' : 'false') . PHP_EOL;
 echo 'MISMATCH_COUNT=' . count($mismatches) . PHP_EOL;
+
 foreach ($mismatches as $index => $mismatch) {
     $path = is_array($mismatch) ? (string) ($mismatch['path'] ?? '') : '';
     $reason = is_array($mismatch) ? (string) ($mismatch['reason'] ?? '') : '';
