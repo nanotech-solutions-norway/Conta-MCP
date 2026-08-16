@@ -26,6 +26,8 @@ jobs:
         run: php tests/invoice-draft-readback-verifier.php
       - name: Remaining control path tests
         run: php tests/remaining-control-paths.php
+      - name: Conta client route tests
+        run: php tests/conta-client-routes.php
       - name: Validate baked sandbox controlled-write harness
         shell: bash
         run: |
