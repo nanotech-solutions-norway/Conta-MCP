@@ -50,4 +50,3 @@ jobs:
 
       - name: Validate authenticated MCP contract
         run: python .github/scripts/validate_authenticated_post_deployment_contract.py
-
