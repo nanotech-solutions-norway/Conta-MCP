@@ -70,4 +70,3 @@ SANDBOX_DUPLICATE_DRAFT_CREATED=false
 ## Next gate
 
 Authenticated MCP `initialize` and `tools/list` validation was required immediately after deployment and is recorded separately in `AUTHENTICATED_POST_DEPLOYMENT_CONTRACT_20260816.md`.
-

@@ -62,4 +62,3 @@ AUTHENTICATED_POST_DEPLOYMENT_MCP_CONTRACT_VALIDATED=true
 ## Next gate
 
 The next safe work unit is protected, non-mutating post-deployment tool validation: local health behavior, preview-only behavior, a sanitized read-only provider check, and direct execution refusal. It must not create another sandbox draft or perform any production mutation. Production-write program design remains a separate future gate.
-
