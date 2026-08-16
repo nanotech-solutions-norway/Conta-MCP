@@ -48,5 +48,27 @@ class FailClosedConfigTests(unittest.TestCase):
             validator.assert_fail_closed_config(self.config, prefix="test")
 
 
+class SuccessfulDataTests(unittest.TestCase):
+    def test_failure_exposes_only_numeric_status(self) -> None:
+        result = {
+            "isError": True,
+            "structuredContent": {
+                "status": 401,
+                "ok": False,
+                "data": {"secretProviderPayload": "must-not-be-logged"},
+            },
+        }
+        with self.assertRaisesRegex(validator.ValidationError, "organizations_tool_failed_status_401"):
+            validator.successful_data(result, "organizations_tool")
+
+    def test_failure_suppresses_non_numeric_status(self) -> None:
+        result = {
+            "isError": True,
+            "structuredContent": {"status": "private", "ok": False, "data": {}},
+        }
+        with self.assertRaisesRegex(validator.ValidationError, "organizations_tool_failed_status_unknown"):
+            validator.successful_data(result, "organizations_tool")
+
+
 if __name__ == "__main__":
     unittest.main()

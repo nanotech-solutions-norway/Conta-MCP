@@ -98,7 +98,9 @@ def assert_execution_tool_absent(token: str) -> None:
 def successful_data(result: dict[str, Any], name: str) -> Any:
     structured = result["structuredContent"]
     if result.get("isError") is not False or structured.get("ok") is not True or structured.get("status") != 200:
-        raise ValidationError(f"{name}_failed")
+        status = structured.get("status")
+        safe_status = status if isinstance(status, int) and not isinstance(status, bool) else "unknown"
+        raise ValidationError(f"{name}_failed_status_{safe_status}")
     return structured.get("data")
 
 
