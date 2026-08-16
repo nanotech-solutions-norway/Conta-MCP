@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
-SECRET_FIELDS = {
+DECISION_VARIABLE_FIELDS = {
     "organizationReference": "CONTA_PROD_ORGANIZATION_REFERENCE",
     "customerSelectionRule": "CONTA_PROD_CUSTOMER_SELECTION_RULE",
     "vatTreatmentRule": "CONTA_PROD_VAT_TREATMENT_RULE",
@@ -35,7 +35,7 @@ SECRET_FIELDS = {
     "providerCapabilityDecision": "CONTA_PROD_PROVIDER_CAPABILITY_DECISION",
 }
 
-ATTESTATION_SECRETS = (
+REVIEW_VARIABLES = (
     "CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED",
     "CONTA_PROD_SECURITY_REVIEW_ATTESTED",
     "CONTA_PROD_CREDENTIAL_CUSTODY_ATTESTED",
@@ -44,16 +44,16 @@ ATTESTATION_SECRETS = (
 
 
 def _required_environment(environ: dict[str, str]) -> dict[str, str]:
-    names = [*SECRET_FIELDS.values(), *ATTESTATION_SECRETS]
+    names = [*DECISION_VARIABLE_FIELDS.values(), *REVIEW_VARIABLES]
     missing = [name for name in names if not environ.get(name, "").strip()]
     if missing:
-        raise ValueError("Missing required protected values: " + ", ".join(missing))
+        raise ValueError("Missing required protected environment variables: " + ", ".join(missing))
 
-    invalid = [name for name in ATTESTATION_SECRETS if environ[name] != "true"]
+    invalid = [name for name in REVIEW_VARIABLES if environ[name] != "true"]
     if invalid:
-        raise ValueError("Required protected attestations are not exactly true: " + ", ".join(invalid))
+        raise ValueError("Required review variables are not exactly true: " + ", ".join(invalid))
 
-    return {field: environ[name] for field, name in SECRET_FIELDS.items()}
+    return {field: environ[name] for field, name in DECISION_VARIABLE_FIELDS.items()}
 
 
 def build_attestation(environ: dict[str, str], now: datetime) -> dict[str, object]:

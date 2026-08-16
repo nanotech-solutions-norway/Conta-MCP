@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).parents[1] / ".github" / "scripts" / "build_production_write_decision_attestation.py"
+WORKFLOW = Path(__file__).parents[1] / ".github" / "workflows" / "conta-production-write-decision-attestation.yml"
 SPEC = importlib.util.spec_from_file_location("decision_attestation", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -20,13 +21,19 @@ SPEC.loader.exec_module(MODULE)
 def protected_environment() -> dict[str, str]:
     values = {
         name: f"protected-value-{index}"
-        for index, name in enumerate(MODULE.SECRET_FIELDS.values(), start=1)
+        for index, name in enumerate(MODULE.DECISION_VARIABLE_FIELDS.values(), start=1)
     }
-    values.update({name: "true" for name in MODULE.ATTESTATION_SECRETS})
+    values.update({name: "true" for name in MODULE.REVIEW_VARIABLES})
     return values
 
 
 class ProductionWriteDecisionAttestationTests(unittest.TestCase):
+    def test_governance_workflow_consumes_no_github_secrets(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("secrets.", workflow)
+        for name in (*MODULE.DECISION_VARIABLE_FIELDS.values(), *MODULE.REVIEW_VARIABLES):
+            self.assertIn(f"vars.{name}", workflow)
+
     def test_builds_deterministic_safe_attestation(self):
         env = protected_environment()
         now = datetime(2026, 8, 16, 10, 0, tzinfo=timezone.utc)
