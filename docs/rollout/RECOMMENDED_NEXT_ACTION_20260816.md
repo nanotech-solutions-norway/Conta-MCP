@@ -3,32 +3,41 @@
 ## Current state
 
 The first controlled Conta sandbox invoice-draft mutation is complete and independently verified.
+The authorized fail-closed protected-runtime deployment and authenticated MCP contract validation are also complete.
 
 ```text
 SANDBOX_INVOICE_DRAFT_CREATE=VERIFIED
 READBACK_VERIFICATION=VERIFIED
 SAME_KEY_REPLAY_REJECTION=VERIFIED
 KILL_SWITCH_CLOSURE=VERIFIED
+FAIL_CLOSED_DEPLOYMENT=VERIFIED
+REMOTE_RUNTIME_HASHES=VERIFIED
+AUTHENTICATED_INITIALIZE=VERIFIED
+AUTHENTICATED_TOOL_CONTRACT=VERIFIED
+EXECUTION_TOOL_VISIBLE=false
 PRODUCTION_WRITE_AUTHORIZED=false
 PRODUCTION_WRITE_PROGRAM=NOT_IMPLEMENTED
 ```
 
-Definitive evidence: `SANDBOX_INVOICE_DRAFT_VERIFIED_SUCCESS_20260816.md`.
+Definitive evidence:
+
+- `SANDBOX_INVOICE_DRAFT_VERIFIED_SUCCESS_20260816.md`
+- `FAIL_CLOSED_DEPLOYMENT_RESULT_20260816.md`
+- `AUTHENTICATED_POST_DEPLOYMENT_CONTRACT_20260816.md`
 
 ## Next authorized work unit
 
-The next work unit is **post-success stabilization and fail-closed deployment readiness**, not another provider mutation.
+The next work unit is **protected non-mutating post-deployment tool validation**, not another provider mutation.
 
 Sequence:
 
-1. Merge the permanent stabilization changes after CI/security validation.
-2. Treat the verified sandbox draft as retained evidence; do not create another draft or perform cleanup without separate authorization.
-3. Select the stabilized `main` commit as the next deployment candidate.
-4. Reconcile the active Domeneshop runtime against canonical `main`.
-5. Prepare a fail-closed deployment plan that preserves all production write gates closed.
-6. Deploy canonical runtime only under a separate deployment authorization.
-7. After deployment, verify health, authenticated MCP initialization, `tools/list`, read-only Conta calls, preview-only behavior, runtime hashes/version, and production write refusal.
-8. Only after fail-closed runtime parity is verified, design and review a separate production-write program.
+1. Treat the verified sandbox draft as retained evidence; do not create another draft or perform cleanup without separate authorization.
+2. Validate the non-provider health tool through the authenticated MCP boundary.
+3. Validate invoice-draft preview with synthetic, non-customer data and confirm no provider call occurs.
+4. Perform at most one sanitized read-only Conta provider check; retain only aggregate success evidence and no organization/customer/accounting payload.
+5. Directly verify that the absent execution tool is rejected before provider dispatch.
+6. Reconfirm health remains fail-closed after the non-mutating checks.
+7. Only after this parity gate is verified, design and review a separate production-write program.
 
 ## Required fail-closed deployment state
 
@@ -81,4 +90,4 @@ Stop before deployment or mutation if any of the following is true:
 
 ## Manual operator gate
 
-The next manual operator decision should occur only when a concrete fail-closed deployment candidate and deployment procedure are ready for review. No further sandbox mutation approval is required for the current post-success stabilization work.
+The fail-closed deployment authorization has been consumed successfully. The next protected gate is non-mutating tool validation only. No further sandbox mutation is required, and no production mutation is authorized.
