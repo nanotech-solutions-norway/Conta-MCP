@@ -22,8 +22,9 @@ PRODUCTION_WRITE_AUTHORIZED=false
 PRODUCTION_WRITE_PROGRAM=NOT_IMPLEMENTED
 PRODUCTION_WRITE_PROGRAM_DESIGN=DESIGN_APPROVED_ONLY
 PRODUCTION_WRITE_DECISION_GATE=AUTHORIZED
-PRODUCTION_WRITE_DECISION_METHOD=GITHUB_ENVIRONMENT_SECRETS
-PRODUCTION_WRITE_DECISION_SECRETS_CONFIGURED=false
+PRODUCTION_WRITE_DECISION_METHOD=GITHUB_PROTECTED_ENVIRONMENT_VARIABLES
+PRODUCTION_WRITE_DECISION_SECRETS_REQUIRED=0
+PRODUCTION_WRITE_DECISION_VARIABLES_CONFIGURED=false
 PROTECTED_PRODUCTION_DECISIONS_COMPLETE=false
 PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZED=false
 ```
@@ -39,7 +40,7 @@ Definitive evidence:
 - `PRODUCTION_WRITE_PROGRAM_DESIGN_DECISION_20260816.md` (design-only approval)
 - `PRODUCTION_WRITE_PROTECTED_DECISION_GATE_20260816.md` (authorized governance scope)
 - `PRODUCTION_WRITE_DECISION_GATE_AUTHORIZATION_REQUEST_20260816.md` (authorization consumed for exact commit)
-- `PRODUCTION_WRITE_GITHUB_SECRETS_DECISION_GATE_20260816.md` (operator-selected remote method)
+- `PRODUCTION_WRITE_GITHUB_ENVIRONMENT_DECISION_GATE_20260816.md` (corrected operator-selected remote method)
 - `PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZATION_REQUEST_TEMPLATE_20260816.md` (not ready)
 
 ## Next authorized work unit
@@ -50,7 +51,7 @@ The operator approved the control framework as `DESIGN_APPROVED_ONLY`. The next 
 
 Sequence:
 
-1. Enter the pending decisions directly as protected secrets in the reviewer-protected `conta-production-write-decisions` GitHub environment.
+1. Enter the pending non-confidential decisions and opaque governance references as variables in the reviewer-protected `conta-production-write-decisions` GitHub environment; do not add provider credentials or confidential records.
 2. Obtain explicit accounting and security/release decisions on customer selection, VAT treatment, credential custody, audit retention and incident response.
 3. Manually dispatch the governance-only attestation workflow from `main` and approve its protected environment gate.
 4. Produce only the repository-safe decision-packet hash and required attestations.
