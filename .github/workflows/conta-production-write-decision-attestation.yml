@@ -1,0 +1,94 @@
+name: Conta Production Write Decision Attestation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Confirm governance-only validation of protected production decisions
+        required: true
+        type: choice
+        options:
+          - VALIDATE_CONTA_PRODUCTION_WRITE_DECISIONS
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-production-write-decision-attestation
+  cancel-in-progress: false
+
+jobs:
+  attest-protected-decisions:
+    name: Attest protected production decisions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-production-write-decisions
+    steps:
+      - name: Verify governance-only operation and main branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.operation }}" != "VALIDATE_CONTA_PRODUCTION_WRITE_DECISIONS" ]]; then
+            echo "Unsupported operation." >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "Protected decision attestation must run from main." >&2
+            exit 1
+          fi
+          echo "Governance-only protected decision validation confirmed."
+
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Build repository-safe attestation
+        shell: bash
+        env:
+          CONTA_PROD_ORGANIZATION_REFERENCE: ${{ secrets.CONTA_PROD_ORGANIZATION_REFERENCE }}
+          CONTA_PROD_CUSTOMER_SELECTION_RULE: ${{ secrets.CONTA_PROD_CUSTOMER_SELECTION_RULE }}
+          CONTA_PROD_VAT_TREATMENT_RULE: ${{ secrets.CONTA_PROD_VAT_TREATMENT_RULE }}
+          CONTA_PROD_FISCAL_PERIOD_RULE: ${{ secrets.CONTA_PROD_FISCAL_PERIOD_RULE }}
+          CONTA_PROD_DUPLICATE_DETECTION_RULE: ${{ secrets.CONTA_PROD_DUPLICATE_DETECTION_RULE }}
+          CONTA_PROD_AUDIT_METADATA_RETENTION: ${{ secrets.CONTA_PROD_AUDIT_METADATA_RETENTION }}
+          CONTA_PROD_EXECUTION_LEDGER_RETENTION: ${{ secrets.CONTA_PROD_EXECUTION_LEDGER_RETENTION }}
+          CONTA_PROD_STORAGE_AUTHORITY_REFERENCE: ${{ secrets.CONTA_PROD_STORAGE_AUTHORITY_REFERENCE }}
+          CONTA_PROD_TAMPER_EVIDENCE_REFERENCE: ${{ secrets.CONTA_PROD_TAMPER_EVIDENCE_REFERENCE }}
+          CONTA_PROD_PROGRAM_OWNER_REFERENCE: ${{ secrets.CONTA_PROD_PROGRAM_OWNER_REFERENCE }}
+          CONTA_PROD_ACCOUNTING_REVIEWER_REFERENCE: ${{ secrets.CONTA_PROD_ACCOUNTING_REVIEWER_REFERENCE }}
+          CONTA_PROD_SECURITY_RELEASE_REVIEWER_REFERENCE: ${{ secrets.CONTA_PROD_SECURITY_RELEASE_REVIEWER_REFERENCE }}
+          CONTA_PROD_CREDENTIAL_CUSTODIAN_REFERENCE: ${{ secrets.CONTA_PROD_CREDENTIAL_CUSTODIAN_REFERENCE }}
+          CONTA_PROD_EXECUTION_APPROVER_REFERENCE: ${{ secrets.CONTA_PROD_EXECUTION_APPROVER_REFERENCE }}
+          CONTA_PROD_INCIDENT_OWNER_REFERENCE: ${{ secrets.CONTA_PROD_INCIDENT_OWNER_REFERENCE }}
+          CONTA_PROD_PROVIDER_CAPABILITY_DECISION: ${{ secrets.CONTA_PROD_PROVIDER_CAPABILITY_DECISION }}
+          CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED: ${{ secrets.CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED }}
+          CONTA_PROD_SECURITY_REVIEW_ATTESTED: ${{ secrets.CONTA_PROD_SECURITY_REVIEW_ATTESTED }}
+          CONTA_PROD_CREDENTIAL_CUSTODY_ATTESTED: ${{ secrets.CONTA_PROD_CREDENTIAL_CUSTODY_ATTESTED }}
+          CONTA_PROD_INCIDENT_REVIEW_ATTESTED: ${{ secrets.CONTA_PROD_INCIDENT_REVIEW_ATTESTED }}
+          ATTESTATION_OUTPUT: artifact/production-write-decision-attestation.json
+        run: |
+          set -euo pipefail
+          umask 077
+          python .github/scripts/build_production_write_decision_attestation.py | tee "$RUNNER_TEMP/safe-attestation.txt"
+          {
+            echo "## Conta production-write decision attestation"
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/safe-attestation.txt"
+            echo '```'
+            echo
+            echo "Protected decision values printed: false."
+            echo "Provider call performed: false."
+            echo "Implementation authorized: false."
+            echo "Production write authorized: false."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload repository-safe attestation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: conta-production-write-decision-attestation
+          path: artifact/production-write-decision-attestation.json
+          if-no-files-found: error
+          retention-days: 30
