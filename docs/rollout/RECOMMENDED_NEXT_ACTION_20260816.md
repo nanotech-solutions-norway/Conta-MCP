@@ -21,7 +21,9 @@ EXECUTION_TOOL_VISIBLE=false
 PRODUCTION_WRITE_AUTHORIZED=false
 PRODUCTION_WRITE_PROGRAM=NOT_IMPLEMENTED
 PRODUCTION_WRITE_PROGRAM_DESIGN=DESIGN_APPROVED_ONLY
-PRODUCTION_WRITE_DECISION_GATE=PROPOSED_FOR_AUTHORIZATION
+PRODUCTION_WRITE_DECISION_GATE=AUTHORIZED
+PRODUCTION_WRITE_DECISION_METHOD=GITHUB_ENVIRONMENT_SECRETS
+PRODUCTION_WRITE_DECISION_SECRETS_CONFIGURED=false
 PROTECTED_PRODUCTION_DECISIONS_COMPLETE=false
 PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZED=false
 ```
@@ -35,8 +37,9 @@ Definitive evidence:
 - `PRODUCTION_WRITE_PROGRAM_DESIGN_20260816.md` (approved control framework; no implementation authority)
 - `PRODUCTION_WRITE_PROGRAM_REVIEW_CHECKLIST_20260816.md`
 - `PRODUCTION_WRITE_PROGRAM_DESIGN_DECISION_20260816.md` (design-only approval)
-- `PRODUCTION_WRITE_PROTECTED_DECISION_GATE_20260816.md` (proposed)
-- `PRODUCTION_WRITE_DECISION_GATE_AUTHORIZATION_REQUEST_20260816.md` (pending explicit authorization)
+- `PRODUCTION_WRITE_PROTECTED_DECISION_GATE_20260816.md` (authorized governance scope)
+- `PRODUCTION_WRITE_DECISION_GATE_AUTHORIZATION_REQUEST_20260816.md` (authorization consumed for exact commit)
+- `PRODUCTION_WRITE_GITHUB_SECRETS_DECISION_GATE_20260816.md` (operator-selected remote method)
 - `PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZATION_REQUEST_TEMPLATE_20260816.md` (not ready)
 
 ## Next authorized work unit
@@ -47,9 +50,9 @@ The operator approved the control framework as `DESIGN_APPROVED_ONLY`. The next 
 
 Sequence:
 
-1. Review and explicitly authorize the production-write protected decision gate for its exact commit.
-2. Complete the pending decisions without committing protected identities or business data.
-3. Obtain explicit accounting and security/release decisions on customer selection, VAT treatment, credential custody, audit retention and incident response.
+1. Enter the pending decisions directly as protected secrets in the reviewer-protected `conta-production-write-decisions` GitHub environment.
+2. Obtain explicit accounting and security/release decisions on customer selection, VAT treatment, credential custody, audit retention and incident response.
+3. Manually dispatch the governance-only attestation workflow from `main` and approve its protected environment gate.
 4. Produce only the repository-safe decision-packet hash and required attestations.
 5. Prepare a bounded implementation-authorization request referencing the approved design and completed decisions.
 6. Preserve the verified sandbox draft and non-mutating parity evidence; do not create another draft or perform cleanup without separate authorization.

@@ -45,7 +45,10 @@ The authorization is invalid if the commit differs, the PR changes afterward, or
 ## Current state
 
 ```text
-DECISION_GATE_AUTHORIZED=false
+DECISION_GATE_AUTHORIZED=true
+AUTHORIZED_COMMIT=f012d393ae6b8550e433ab756d5442c6f35661eb
+AUTHORIZATION_CONSUMED_BY_MERGE_COMMIT=7670ea397d6f2b776d1d028a6629645d8e37bfda
+PROTECTED_EXECUTION_METHOD=GITHUB_ENVIRONMENT_SECRETS
 PROTECTED_DECISIONS_COMPLETE=false
 IMPLEMENTATION_AUTHORIZED=false
 DEPLOYMENT_AUTHORIZED=false
@@ -53,3 +56,5 @@ RELEASE_APPROVED=false
 FIRST_PRODUCTION_MUTATION_AUTHORIZED=false
 PRODUCTION_WRITE_AUTHORIZED=false
 ```
+
+The operator subsequently reported that PowerShell is unavailable and selected GitHub Secrets for confidential information. The remote method and its fail-closed boundary are defined in `PRODUCTION_WRITE_GITHUB_SECRETS_DECISION_GATE_20260816.md`.
