@@ -17,7 +17,7 @@ Conta's public API help states that Conta exposes REST/JSON APIs through product
 
 | MCP tool | Route template | Status |
 |---|---|---|
-| `conta_list_organizations` | `/organizations` | Must verify in Swagger before production. Public help references organization-list API but does not show concrete route. |
+| `conta_list_organizations` | `/invoice/organizations` | Verified in the protected sandbox identity/access run `31418133692`; the stale `/organizations` route returned `404` in protected production MCP validation run `31949134217`. |
 | `conta_list_customers` | `/invoice/organizations/{orgId}/customers` | Public help provides this route example. |
 | `conta_get_customer` | `/invoice/organizations/{orgId}/customers/{customerId}` | Public help provides this route example. |
 | `conta_list_invoices` | `/invoice/organizations/{orgId}/invoices` | Must verify in Swagger before production. Public help shows invoice/payment examples under this route family. |
@@ -27,7 +27,7 @@ Conta's public API help states that Conta exposes REST/JSON APIs through product
 ## Validation procedure
 
 1. Open Conta sandbox Swagger.
-2. Confirm organization-list route.
+2. Revalidate the organization-list route if the provider schema or gateway version changes.
 3. Confirm customer list/get routes.
 4. Confirm invoice list/get routes.
 5. Confirm the exact draft-invoice creation route and payload schema.

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 final class ContaClient
 {
+    public const ORGANIZATIONS_ROUTE = '/invoice/organizations';
+
     public function __construct(
         private readonly Config $config,
         private readonly HttpClient $httpClient,
@@ -16,7 +18,7 @@ final class ContaClient
 
     public function listOrganizations(): array
     {
-        return $this->request('GET', '/organizations');
+        return $this->request('GET', self::ORGANIZATIONS_ROUTE);
     }
 
     public function listCustomers(string $organizationId, array $query = []): array
