@@ -21,6 +21,8 @@ EXECUTION_TOOL_VISIBLE=false
 PRODUCTION_WRITE_AUTHORIZED=false
 PRODUCTION_WRITE_PROGRAM=NOT_IMPLEMENTED
 PRODUCTION_WRITE_PROGRAM_DESIGN=DESIGN_APPROVED_ONLY
+PRODUCTION_WRITE_DECISION_GATE=PROPOSED_FOR_AUTHORIZATION
+PROTECTED_PRODUCTION_DECISIONS_COMPLETE=false
 PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZED=false
 ```
 
@@ -33,20 +35,25 @@ Definitive evidence:
 - `PRODUCTION_WRITE_PROGRAM_DESIGN_20260816.md` (approved control framework; no implementation authority)
 - `PRODUCTION_WRITE_PROGRAM_REVIEW_CHECKLIST_20260816.md`
 - `PRODUCTION_WRITE_PROGRAM_DESIGN_DECISION_20260816.md` (design-only approval)
+- `PRODUCTION_WRITE_PROTECTED_DECISION_GATE_20260816.md` (proposed)
+- `PRODUCTION_WRITE_DECISION_GATE_AUTHORIZATION_REQUEST_20260816.md` (pending explicit authorization)
+- `PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZATION_REQUEST_TEMPLATE_20260816.md` (not ready)
 
 ## Next authorized work unit
 
-The next safe work unit is **design and review of a separate production-write program**. It is a governance and control-design phase only.
+The next safe work unit is **protected completion and review of production-write governance decisions**. It remains a governance phase only.
 
-The operator approved the control framework as `DESIGN_APPROVED_ONLY`. Protected accounting, security/release, credential-custody, retention and incident decisions remain pending. Design approval does not authorize implementation.
+The operator approved the control framework as `DESIGN_APPROVED_ONLY`. The next proposed gate prepares and reviews those protected decisions without putting their values in Git, chat or public workflow inputs. This gate requires an exact-commit authorization and does not authorize implementation.
 
 Sequence:
 
-1. Complete the pending decisions without committing protected identities or business data.
-2. Obtain explicit accounting and security/release decisions on limits, customer selection, VAT treatment, credential custody, audit retention and incident response.
-3. Prepare a bounded implementation-authorization request referencing the approved design and completed decisions.
-4. Preserve the verified sandbox draft and non-mutating parity evidence; do not create another draft or perform cleanup without separate authorization.
-5. Require a later, separate explicit operator authorization before any implementation, configuration, deployment, write-tool visibility or provider mutation.
+1. Review and explicitly authorize the production-write protected decision gate for its exact commit.
+2. Complete the pending decisions without committing protected identities or business data.
+3. Obtain explicit accounting and security/release decisions on customer selection, VAT treatment, credential custody, audit retention and incident response.
+4. Produce only the repository-safe decision-packet hash and required attestations.
+5. Prepare a bounded implementation-authorization request referencing the approved design and completed decisions.
+6. Preserve the verified sandbox draft and non-mutating parity evidence; do not create another draft or perform cleanup without separate authorization.
+7. Require a later, separate explicit operator authorization before any implementation, configuration, deployment, write-tool visibility or provider mutation.
 
 ## Required fail-closed deployment state
 
