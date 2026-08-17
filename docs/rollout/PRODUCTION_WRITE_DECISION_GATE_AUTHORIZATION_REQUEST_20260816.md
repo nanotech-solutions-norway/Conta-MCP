@@ -48,7 +48,7 @@ The authorization is invalid if the commit differs, the PR changes afterward, or
 DECISION_GATE_AUTHORIZED=true
 AUTHORIZED_COMMIT=f012d393ae6b8550e433ab756d5442c6f35661eb
 AUTHORIZATION_CONSUMED_BY_MERGE_COMMIT=7670ea397d6f2b776d1d028a6629645d8e37bfda
-PROTECTED_EXECUTION_METHOD=GITHUB_PROTECTED_ENVIRONMENT_VARIABLES
+PROTECTED_EXECUTION_METHOD=GITHUB_PROTECTED_ENVIRONMENT_VARIABLES_PLUS_ONE_SECRET
 PROTECTED_DECISIONS_COMPLETE=false
 IMPLEMENTATION_AUTHORIZED=false
 DEPLOYMENT_AUTHORIZED=false
@@ -57,4 +57,4 @@ FIRST_PRODUCTION_MUTATION_AUTHORIZED=false
 PRODUCTION_WRITE_AUTHORIZED=false
 ```
 
-The operator subsequently reported that PowerShell is unavailable, selected GitHub for the remote gate, and clarified that Secrets are reserved for credentials and genuinely confidential values. This governance-only workflow requires no credentials. The corrected remote method and its fail-closed boundary are defined in `PRODUCTION_WRITE_GITHUB_ENVIRONMENT_DECISION_GATE_20260816.md`.
+The operator subsequently reported that PowerShell is unavailable, selected GitHub for the remote gate, and clarified that Secrets are reserved for credentials and genuinely confidential values. This governance-only workflow requires no provider credentials; it uses one Environment secret for the operator-classified confidential production organization reference. The corrected remote method and its fail-closed boundary are defined in `PRODUCTION_WRITE_GITHUB_ENVIRONMENT_DECISION_GATE_20260816.md`.

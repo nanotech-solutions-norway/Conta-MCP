@@ -22,9 +22,11 @@ PRODUCTION_WRITE_AUTHORIZED=false
 PRODUCTION_WRITE_PROGRAM=NOT_IMPLEMENTED
 PRODUCTION_WRITE_PROGRAM_DESIGN=DESIGN_APPROVED_ONLY
 PRODUCTION_WRITE_DECISION_GATE=AUTHORIZED
-PRODUCTION_WRITE_DECISION_METHOD=GITHUB_PROTECTED_ENVIRONMENT_VARIABLES
-PRODUCTION_WRITE_DECISION_SECRETS_REQUIRED=0
-PRODUCTION_WRITE_DECISION_VARIABLES_CONFIGURED=false
+PRODUCTION_WRITE_DECISION_METHOD=GITHUB_PROTECTED_ENVIRONMENT_VARIABLES_PLUS_ONE_SECRET
+PRODUCTION_WRITE_DECISION_SECRETS_REQUIRED=1
+PRODUCTION_WRITE_DECISION_ORGANIZATION_SECRET_PRESENT_IN_TARGET_ENVIRONMENT=false
+PRODUCTION_WRITE_DECISION_VARIABLES_CONFIGURED=true
+PRODUCTION_WRITE_DECISION_HUMAN_REVIEWS_COMPLETE=false
 PROTECTED_PRODUCTION_DECISIONS_COMPLETE=false
 PRODUCTION_WRITE_IMPLEMENTATION_AUTHORIZED=false
 ```
@@ -51,13 +53,14 @@ The operator approved the control framework as `DESIGN_APPROVED_ONLY`. The next 
 
 Sequence:
 
-1. Enter the pending non-confidential decisions and opaque governance references as variables in the reviewer-protected `conta-production-write-decisions` GitHub environment; do not add provider credentials or confidential records.
-2. Obtain explicit accounting and security/release decisions on customer selection, VAT treatment, credential custody, audit retention and incident response.
-3. Manually dispatch the governance-only attestation workflow from `main` and approve its protected environment gate.
-4. Produce only the repository-safe decision-packet hash and required attestations.
-5. Prepare a bounded implementation-authorization request referencing the approved design and completed decisions.
-6. Preserve the verified sandbox draft and non-mutating parity evidence; do not create another draft or perform cleanup without separate authorization.
-7. Require a later, separate explicit operator authorization before any implementation, configuration, deployment, write-tool visibility or provider mutation.
+1. Add `CONTA_PROD_ORGANIZATION_REFERENCE` to the reviewer-protected `conta-production-write-decisions` GitHub environment; the same-named sandbox secret does not satisfy this gate.
+2. Replace pending retention and provider-capability values only after their human decisions, then set each review-attestation variable to `true` only after that review is complete.
+3. Obtain explicit accounting and security/release decisions on customer selection, VAT treatment, credential custody, audit retention and incident response.
+4. Manually dispatch the governance-only attestation workflow from `main` and approve its protected environment gate.
+5. Produce only the repository-safe decision-packet hash and required attestations.
+6. Prepare a bounded implementation-authorization request referencing the approved design and completed decisions.
+7. Preserve the verified sandbox draft and non-mutating parity evidence; do not create another draft or perform cleanup without separate authorization.
+8. Require a later, separate explicit operator authorization before any implementation, configuration, deployment, write-tool visibility or provider mutation.
 
 ## Required fail-closed deployment state
 

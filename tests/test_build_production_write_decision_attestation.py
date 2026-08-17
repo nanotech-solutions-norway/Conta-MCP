@@ -28,10 +28,14 @@ def protected_environment() -> dict[str, str]:
 
 
 class ProductionWriteDecisionAttestationTests(unittest.TestCase):
-    def test_governance_workflow_consumes_no_github_secrets(self):
+    def test_governance_workflow_consumes_only_organization_reference_secret(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        self.assertNotIn("secrets.", workflow)
-        for name in (*MODULE.DECISION_VARIABLE_FIELDS.values(), *MODULE.REVIEW_VARIABLES):
+        self.assertEqual(workflow.count("secrets."), 1)
+        self.assertIn("secrets.CONTA_PROD_ORGANIZATION_REFERENCE", workflow)
+        variable_names = set(MODULE.DECISION_VARIABLE_FIELDS.values()) - {
+            "CONTA_PROD_ORGANIZATION_REFERENCE"
+        }
+        for name in (*variable_names, *MODULE.REVIEW_VARIABLES):
             self.assertIn(f"vars.{name}", workflow)
 
     def test_builds_deterministic_safe_attestation(self):
