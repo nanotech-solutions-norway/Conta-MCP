@@ -26,20 +26,12 @@ DECISION_VARIABLE_FIELDS = {
     "executionLedgerRetention": "CONTA_PROD_EXECUTION_LEDGER_RETENTION",
     "storageAuthorityReference": "CONTA_PROD_STORAGE_AUTHORITY_REFERENCE",
     "tamperEvidenceReference": "CONTA_PROD_TAMPER_EVIDENCE_REFERENCE",
-    "programOwnerReference": "CONTA_PROD_PROGRAM_OWNER_REFERENCE",
-    "accountingReviewerReference": "CONTA_PROD_ACCOUNTING_REVIEWER_REFERENCE",
-    "securityReleaseReviewerReference": "CONTA_PROD_SECURITY_RELEASE_REVIEWER_REFERENCE",
-    "credentialCustodianReference": "CONTA_PROD_CREDENTIAL_CUSTODIAN_REFERENCE",
-    "executionApproverReference": "CONTA_PROD_EXECUTION_APPROVER_REFERENCE",
-    "incidentOwnerReference": "CONTA_PROD_INCIDENT_OWNER_REFERENCE",
+    "operatorReference": "CONTA_PROD_PROGRAM_OWNER_REFERENCE",
     "providerCapabilityDecision": "CONTA_PROD_PROVIDER_CAPABILITY_DECISION",
 }
 
 REVIEW_VARIABLES = (
-    "CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED",
-    "CONTA_PROD_SECURITY_REVIEW_ATTESTED",
-    "CONTA_PROD_CREDENTIAL_CUSTODY_ATTESTED",
-    "CONTA_PROD_INCIDENT_REVIEW_ATTESTED",
+    "CONTA_PROD_OPERATOR_REVIEW_ATTESTED",
 )
 
 
@@ -51,24 +43,21 @@ def _required_environment(environ: dict[str, str]) -> dict[str, str]:
 
     invalid = [name for name in REVIEW_VARIABLES if environ[name] != "true"]
     if invalid:
-        raise ValueError("Required review variables are not exactly true: " + ", ".join(invalid))
+        raise ValueError("Required operator review variable is not exactly true: " + ", ".join(invalid))
 
     return {field: environ[name] for field, name in DECISION_VARIABLE_FIELDS.items()}
 
 
 def build_attestation(environ: dict[str, str], now: datetime) -> dict[str, object]:
     protected = _required_environment(environ)
-    if protected["accountingReviewerReference"] == protected["securityReleaseReviewerReference"]:
-        raise ValueError("Accounting and security/release reviewer references must differ")
-    if protected["credentialCustodianReference"] == protected["executionApproverReference"]:
-        raise ValueError("Credential custodian and execution approver references must differ")
 
     created_at = now.astimezone(timezone.utc).replace(microsecond=0)
     expires_at = created_at + timedelta(hours=24)
     packet: dict[str, object] = {
-        "packetVersion": "1",
+        "packetVersion": "2",
         "environment": "production",
         "action": "invoice_draft_create_v2",
+        "governanceModel": "single_human_operator",
         "currency": "NOK",
         "maximumLines": 1,
         "maximumLineAmount": "1.00",
@@ -87,6 +76,7 @@ def build_attestation(environ: dict[str, str], now: datetime) -> dict[str, objec
         "DECISION_PACKET_SHA256": digest,
         "DECISION_PACKET_VERSION": packet["packetVersion"],
         "DECISION_PACKET_EXPIRES_AT": packet["expiresAt"],
+        "GOVERNANCE_MODEL": packet["governanceModel"],
         "ORGANIZATION_REFERENCE_HASH_BOUND": True,
         "CUSTOMER_SELECTION_RULE_BOUND": True,
         "ACCOUNTING_LIMITS_BOUND": True,
@@ -94,8 +84,7 @@ def build_attestation(environ: dict[str, str], now: datetime) -> dict[str, objec
         "FISCAL_PERIOD_RULE_BOUND": True,
         "DUPLICATE_RULE_BOUND": True,
         "RETENTION_DECISIONS_BOUND": True,
-        "SEPARATION_OF_DUTIES_REVIEWED": True,
-        "CREDENTIAL_CUSTODY_REVIEWED": True,
+        "SINGLE_HUMAN_OPERATOR_REVIEWED": True,
         "INCIDENT_OWNERSHIP_REVIEWED": True,
         "PROVIDER_CAPABILITY_DECISION_RECORDED": True,
         "PROTECTED_VALUE_PRINTED": False,
