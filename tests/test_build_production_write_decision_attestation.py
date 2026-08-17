@@ -37,18 +37,35 @@ class ProductionWriteDecisionAttestationTests(unittest.TestCase):
         }
         for name in (*variable_names, *MODULE.REVIEW_VARIABLES):
             self.assertIn(f"vars.{name}", workflow)
+        for obsolete in (
+            "CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED",
+            "CONTA_PROD_SECURITY_REVIEW_ATTESTED",
+            "CONTA_PROD_CREDENTIAL_CUSTODY_ATTESTED",
+            "CONTA_PROD_INCIDENT_REVIEW_ATTESTED",
+            "CONTA_PROD_ACCOUNTING_REVIEWER_REFERENCE",
+            "CONTA_PROD_SECURITY_RELEASE_REVIEWER_REFERENCE",
+            "CONTA_PROD_CREDENTIAL_CUSTODIAN_REFERENCE",
+            "CONTA_PROD_EXECUTION_APPROVER_REFERENCE",
+            "CONTA_PROD_INCIDENT_OWNER_REFERENCE",
+        ):
+            self.assertNotIn(obsolete, workflow)
 
     def test_builds_deterministic_safe_attestation(self):
         env = protected_environment()
-        now = datetime(2026, 8, 16, 10, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 8, 17, 10, 0, tzinfo=timezone.utc)
         first = MODULE.build_attestation(env, now)
         second = MODULE.build_attestation(env, now)
 
         self.assertEqual(first, second)
         self.assertRegex(first["DECISION_PACKET_SHA256"], r"^[0-9a-f]{64}$")
-        self.assertEqual(first["DECISION_PACKET_EXPIRES_AT"], "2026-08-17T10:00:00Z")
+        self.assertEqual(first["DECISION_PACKET_VERSION"], "2")
+        self.assertEqual(first["GOVERNANCE_MODEL"], "single_human_operator")
+        self.assertEqual(first["DECISION_PACKET_EXPIRES_AT"], "2026-08-18T10:00:00Z")
+        self.assertTrue(first["SINGLE_HUMAN_OPERATOR_REVIEWED"])
         self.assertFalse(first["PROTECTED_VALUE_PRINTED"])
         self.assertFalse(first["PROVIDER_CALL_PERFORMED"])
+        self.assertFalse(first["IMPLEMENTATION_AUTHORIZED"])
+        self.assertFalse(first["PRODUCTION_WRITE_AUTHORIZED"])
         serialized = json.dumps(first)
         for value in env.values():
             if value != "true":
@@ -61,17 +78,15 @@ class ProductionWriteDecisionAttestationTests(unittest.TestCase):
             MODULE.build_attestation(env, datetime.now(timezone.utc))
 
         env = protected_environment()
-        env["CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED"] = "false"
-        with self.assertRaisesRegex(ValueError, "not exactly true"):
+        env["CONTA_PROD_OPERATOR_REVIEW_ATTESTED"] = "false"
+        with self.assertRaisesRegex(ValueError, "operator review"):
             MODULE.build_attestation(env, datetime.now(timezone.utc))
 
-    def test_rejects_incompatible_duty_overlap(self):
+    def test_single_operator_requires_no_separation_of_duties(self):
         env = protected_environment()
-        env["CONTA_PROD_SECURITY_RELEASE_REVIEWER_REFERENCE"] = env[
-            "CONTA_PROD_ACCOUNTING_REVIEWER_REFERENCE"
-        ]
-        with self.assertRaisesRegex(ValueError, "must differ"):
-            MODULE.build_attestation(env, datetime.now(timezone.utc))
+        attestation = MODULE.build_attestation(env, datetime.now(timezone.utc))
+        self.assertEqual(attestation["GOVERNANCE_MODEL"], "single_human_operator")
+        self.assertNotIn("SEPARATION_OF_DUTIES_REVIEWED", attestation)
 
     def test_cli_prints_only_safe_attestation(self):
         env = protected_environment()
