@@ -23,6 +23,11 @@ def protected_environment() -> dict[str, str]:
         name: f"protected-value-{index}"
         for index, name in enumerate(MODULE.DECISION_VARIABLE_FIELDS.values(), start=1)
     }
+    values["CONTA_PROD_AUDIT_METADATA_RETENTION"] = "approved:P5Y_AFTER_FISCAL_YEAR_END"
+    values["CONTA_PROD_EXECUTION_LEDGER_RETENTION"] = "approved:P13M_AFTER_EXECUTION"
+    values["CONTA_PROD_PROVIDER_CAPABILITY_DECISION"] = (
+        "least_privilege_confirmed:evidence-reference"
+    )
     values.update({name: "true" for name in MODULE.REVIEW_VARIABLES})
     return values
 
@@ -87,6 +92,33 @@ class ProductionWriteDecisionAttestationTests(unittest.TestCase):
         attestation = MODULE.build_attestation(env, datetime.now(timezone.utc))
         self.assertEqual(attestation["GOVERNANCE_MODEL"], "single_human_operator")
         self.assertNotIn("SEPARATION_OF_DUTIES_REVIEWED", attestation)
+
+    def test_rejects_proposed_retention_values(self):
+        env = protected_environment()
+        env["CONTA_PROD_AUDIT_METADATA_RETENTION"] = "proposed:P5Y_AFTER_FISCAL_YEAR_END"
+        with self.assertRaisesRegex(ValueError, "auditMetadataRetention must start with approved"):
+            MODULE.build_attestation(env, datetime.now(timezone.utc))
+
+        env = protected_environment()
+        env["CONTA_PROD_EXECUTION_LEDGER_RETENTION"] = "proposed:P13M_AFTER_EXECUTION"
+        with self.assertRaisesRegex(ValueError, "executionLedgerRetention must start with approved"):
+            MODULE.build_attestation(env, datetime.now(timezone.utc))
+
+    def test_rejects_unresolved_provider_capability(self):
+        env = protected_environment()
+        env["CONTA_PROD_PROVIDER_CAPABILITY_DECISION"] = (
+            "capability-gap-unresolved;production-write-blocked=true"
+        )
+        with self.assertRaisesRegex(ValueError, "confirmed least privilege"):
+            MODULE.build_attestation(env, datetime.now(timezone.utc))
+
+    def test_accepts_explicit_capability_gap_risk_acceptance(self):
+        env = protected_environment()
+        env["CONTA_PROD_PROVIDER_CAPABILITY_DECISION"] = (
+            "capability_gap_risk_accepted:security-decision-reference"
+        )
+        attestation = MODULE.build_attestation(env, datetime.now(timezone.utc))
+        self.assertTrue(attestation["PROVIDER_CAPABILITY_DECISION_RECORDED"])
 
     def test_cli_prints_only_safe_attestation(self):
         env = protected_environment()

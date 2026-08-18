@@ -87,9 +87,34 @@ The manual workflow:
 
 The attestation expires 24 hours after creation. An expired or incomplete attestation cannot open the next gate.
 
+## Recommended values pending operator decision — 2026-08-18
+
+The following non-confidential recommendations are configured but deliberately remain non-final:
+
+```text
+CONTA_PROD_AUDIT_METADATA_RETENTION=proposed:P5Y_AFTER_FISCAL_YEAR_END;purpose=accounting-control-evidence;metadata-only=true;legal-hold=extend;expiry=delete-or-anonymize
+CONTA_PROD_EXECUTION_LEDGER_RETENTION=proposed:P13M_AFTER_EXECUTION;purpose=replay-and-incident-investigation;minimal-metadata=true;legal-hold=extend;expiry=delete-or-anonymize
+CONTA_PROD_PROVIDER_CAPABILITY_DECISION=capability-gap-unresolved;production-write-blocked=true;required=dedicated-production-user-single-organization-minimum-permissions-or-explicit-security-risk-acceptance
+```
+
+The five-year audit recommendation aligns metadata used as accounting-control evidence with the general Norwegian five-year retention period for primary accounting material. This is a conservative policy alignment, not a claim that every audit field is statutory accounting material. The thirteen-month execution-ledger recommendation covers a complete annual control cycle plus one month while limiting retention of operational metadata. Legal hold extends either period, and expiry requires deletion or anonymization.
+
+The repository evidence says Conta API keys inherit the creating user's access and the public API contract exposes no granular API-key scope list. Least privilege is therefore not verified. The recommended current capability value blocks production progress; it is not a risk acceptance.
+
+Recommendation basis:
+
+- Norwegian Tax Administration, accounting-material retention: `https://www.skatteetaten.no/en/rettskilder/type/uttalelser/prinsipputtalelser/oppbevaring-av-regnskapsmateriale-ved-avvikling-og-konkurs/`
+- Datatilsynet, storage limitation and deletion/anonymization: `https://www.datatilsynet.no/rettigheter-og-plikter/personvernprinsippene/grunnleggende-personvernprinsipper/lagringsbegrensning/`
+- NSM, logging strategy, integrity, retention and deletion: `https://nsm.no/hold-deg-oppdatert/meninger/logging-du-ma-vite-hva-som-skjer-og-hva-som-har-skjedd`
+- Conta access-model evidence: `CURRENT_PROVIDER_SCHEMA_SANDBOX_EVIDENCE_REFRESH_20260810.md`
+
+The attestation builder rejects retention values unless they start with `approved:`. It also rejects provider capability unless it starts with either `least_privilege_confirmed:` or `capability_gap_risk_accepted:`. This prevents a proposed value or unresolved capability gap from becoming a successful attestation merely because the operator review variable changes.
+
 ## Next stop
 
 1. Merge and validate the single-human governance change.
-2. Set `CONTA_PROD_OPERATOR_REVIEW_ATTESTED=true` only after Ruben A. Meyer has reviewed the configured governance decisions.
-3. Dispatch the governance-only decision-attestation workflow from `main`.
-4. A successful attestation may support a later implementation-authorization request, but does not itself authorize implementation or any production provider mutation.
+2. Decide the two retention recommendations and replace `proposed:` with `approved:` only if accepted.
+3. Obtain provider least-privilege evidence or explicitly accept the documented capability gap, then record the corresponding permitted prefix and a non-sensitive decision/evidence reference.
+4. Set `CONTA_PROD_OPERATOR_REVIEW_ATTESTED=true` only after Ruben A. Meyer has reviewed and accepted the final configured governance decisions.
+5. Dispatch the governance-only decision-attestation workflow from `main`.
+6. A successful attestation may support a later implementation-authorization request, but does not itself authorize implementation or any production provider mutation.

@@ -48,8 +48,26 @@ def _required_environment(environ: dict[str, str]) -> dict[str, str]:
     return {field: environ[name] for field, name in DECISION_VARIABLE_FIELDS.items()}
 
 
+def _validate_final_decisions(protected: dict[str, str]) -> None:
+    for field in ("auditMetadataRetention", "executionLedgerRetention"):
+        if not protected[field].startswith("approved:"):
+            raise ValueError(f"{field} must start with approved:")
+
+    capability = protected["providerCapabilityDecision"]
+    allowed_capability_prefixes = (
+        "least_privilege_confirmed:",
+        "capability_gap_risk_accepted:",
+    )
+    if not capability.startswith(allowed_capability_prefixes):
+        raise ValueError(
+            "providerCapabilityDecision must record confirmed least privilege "
+            "or explicit capability-gap risk acceptance"
+        )
+
+
 def build_attestation(environ: dict[str, str], now: datetime) -> dict[str, object]:
     protected = _required_environment(environ)
+    _validate_final_decisions(protected)
 
     created_at = now.astimezone(timezone.utc).replace(microsecond=0)
     expires_at = created_at + timedelta(hours=24)
