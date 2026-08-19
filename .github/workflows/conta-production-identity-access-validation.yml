@@ -1,0 +1,174 @@
+name: Conta Production Identity Access Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Confirm this GET-only production identity/access validation
+        required: true
+        type: choice
+        options:
+          - VALIDATE_GET_ONLY_PRODUCTION_IDENTITY_ACCESS
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conta-production-identity-access-validation
+  cancel-in-progress: false
+
+jobs:
+  validate-get-only-production-access:
+    name: Validate GET-only production identity access
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: conta-production-identity-validation
+    env:
+      CONTA_ENVIRONMENT: ${{ vars.CONTA_ENVIRONMENT }}
+      CONTA_API_BASE_URL: ${{ vars.CONTA_API_BASE_URL }}
+      CONTA_API_KEY: ${{ secrets.CONTA_API_KEY }}
+      CONTA_ORG_ID: ${{ secrets.CONTA_ORG_ID }}
+    steps:
+      - name: Verify authorized operation and protected inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.operation }}" != "VALIDATE_GET_ONLY_PRODUCTION_IDENTITY_ACCESS" ]]; then
+            echo "Unsupported operation." >&2
+            exit 1
+          fi
+          if [[ "$CONTA_ENVIRONMENT" != "production" ]]; then
+            echo "Protected environment is not configured for production." >&2
+            exit 1
+          fi
+          if [[ "$CONTA_API_BASE_URL" != "https://api.gateway.conta.no" ]]; then
+            echo "Protected environment does not use the approved Conta production gateway." >&2
+            exit 1
+          fi
+
+          missing=()
+          for name in CONTA_API_KEY CONTA_ORG_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required protected input: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          echo "Authorized GET-only validation request and protected input presence confirmed."
+
+      - name: Validate dedicated production identity and organization access with GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          organizations_file="$RUNNER_TEMP/conta-production-organizations.json"
+          subscription_file="$RUNNER_TEMP/conta-production-subscription-plan.json"
+          cleanup() {
+            rm -f -- "$organizations_file" "$subscription_file"
+          }
+          trap cleanup EXIT
+
+          set +e
+          organizations_status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$organizations_file" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations")
+          organizations_curl_exit=$?
+          set -e
+
+          if [[ $organizations_curl_exit -ne 0 || "$organizations_status" != "200" ]]; then
+            echo "Production organization-list GET failed (curl_exit=${organizations_curl_exit}, http_status=${organizations_status:-unavailable})." >&2
+            exit 1
+          fi
+
+          if ! jq -e 'type == "array"' "$organizations_file" >/dev/null; then
+            echo "Production organization-list response did not match the expected array shape." >&2
+            exit 1
+          fi
+
+          accessible_organization_count=$(jq 'length' "$organizations_file")
+          if [[ "$accessible_organization_count" != "1" ]]; then
+            echo "Dedicated production identity must have access to exactly one organization; observed count=${accessible_organization_count}." >&2
+            exit 1
+          fi
+
+          if ! jq -e --arg org_id "$CONTA_ORG_ID" 'length == 1 and ((.[0].id | tostring) == $org_id)' "$organizations_file" >/dev/null; then
+            echo "Configured production organization does not match the sole accessible organization." >&2
+            exit 1
+          fi
+
+          organization_reference_sha256=$(printf '%s' "$CONTA_ORG_ID" | sha256sum | awk '{print $1}')
+
+          set +e
+          subscription_status=$(curl \
+            --silent \
+            --show-error \
+            --request GET \
+            --output "$subscription_file" \
+            --write-out '%{http_code}' \
+            --header "apiKey: ${CONTA_API_KEY}" \
+            --header 'Accept: application/json' \
+            --connect-timeout 15 \
+            --max-time 45 \
+            "${CONTA_API_BASE_URL}/invoice/organizations/${CONTA_ORG_ID}/subscription-plan")
+          subscription_curl_exit=$?
+          set -e
+
+          if [[ $subscription_curl_exit -ne 0 || "$subscription_status" != "200" ]]; then
+            echo "Production organization-scoped GET failed (curl_exit=${subscription_curl_exit}, http_status=${subscription_status:-unavailable})." >&2
+            exit 1
+          fi
+
+          if [[ ! -s "$subscription_file" ]]; then
+            echo "Production organization-scoped GET returned an empty response body." >&2
+            exit 1
+          fi
+
+          {
+            echo "## Conta production GET-only identity/access validation"
+            echo
+            echo "- Production API authenticated: true."
+            echo "- Production environment enforced: true."
+            echo "- Accessible organization count: 1."
+            echo "- Configured organization accessible: true."
+            echo "- Configured organization is sole accessible organization: true."
+            echo "- Organization reference SHA-256: ${organization_reference_sha256}."
+            echo "- Organization-scoped GET succeeded: true."
+            echo "- HTTP methods used: GET only."
+            echo "- Provider read call performed: true."
+            echo "- Provider write call performed: false."
+            echo "- Production mutation performed: false."
+            echo "- Response body printed: false."
+            echo "- Secret value printed: false."
+            echo "- Live configuration changed: false."
+            echo "- Deployment performed: false."
+            echo "- Production write authorized: false."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "PRODUCTION_API_AUTHENTICATED=true"
+          echo "ACCESSIBLE_ORGANIZATION_COUNT=1"
+          echo "CONFIGURED_ORGANIZATION_ACCESSIBLE=true"
+          echo "CONFIGURED_ORGANIZATION_IS_SOLE_ACCESSIBLE_ORGANIZATION=true"
+          echo "ORGANIZATION_REFERENCE_SHA256=${organization_reference_sha256}"
+          echo "ORGANIZATION_SCOPED_GET_SUCCEEDED=true"
+          echo "HTTP_METHODS_USED=GET_ONLY"
+          echo "PROVIDER_READ_CALL_PERFORMED=true"
+          echo "PROVIDER_WRITE_CALL_PERFORMED=false"
+          echo "PRODUCTION_MUTATION_PERFORMED=false"
+          echo "RESPONSE_BODY_PRINTED=false"
+          echo "SECRET_VALUE_PRINTED=false"
+          echo "LIVE_CONFIGURATION_CHANGED=false"
+          echo "DEPLOYMENT_PERFORMED=false"
+          echo "PRODUCTION_WRITE_AUTHORIZED=false"
