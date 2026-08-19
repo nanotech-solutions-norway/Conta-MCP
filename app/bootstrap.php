@@ -11,6 +11,7 @@ require_once __DIR__ . '/ApprovalEnvelopeVerifier.php';
 require_once __DIR__ . '/ReleaseManifestGuard.php';
 require_once __DIR__ . '/WriteKillSwitch.php';
 require_once __DIR__ . '/SandboxAuthorizationGate.php';
+require_once __DIR__ . '/ProductionAuthorizationGate.php';
 require_once __DIR__ . '/WriteDispatchPermit.php';
 require_once __DIR__ . '/WritePolicy.php';
 require_once __DIR__ . '/WriteExecutionLedger.php';
@@ -28,7 +29,15 @@ $approvalVerifier = new ApprovalEnvelopeVerifier($config);
 $releaseManifestGuard = new ReleaseManifestGuard($config, $rootDir);
 $killSwitch = new WriteKillSwitch($config);
 $sandboxAuthorizationGate = new SandboxAuthorizationGate($config, $approvalVerifier);
-$writePolicy = new WritePolicy($config, $approvalVerifier, $releaseManifestGuard, $killSwitch, $sandboxAuthorizationGate);
+$productionAuthorizationGate = new ProductionAuthorizationGate($config, $approvalVerifier);
+$writePolicy = new WritePolicy(
+    $config,
+    $approvalVerifier,
+    $releaseManifestGuard,
+    $killSwitch,
+    $sandboxAuthorizationGate,
+    $productionAuthorizationGate
+);
 $writeLedger = new WriteExecutionLedger($config->writeLedgerPath());
 $invoiceDraftPreview = new InvoiceDraftPreview($config, $writePolicy);
 $readbackVerifier = new InvoiceDraftReadbackVerifier();

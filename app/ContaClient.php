@@ -48,6 +48,7 @@ final class ContaClient
             return ['status' => 501, 'ok' => false, 'body' => ['error' => 'create_invoice_draft_route_not_configured']];
         }
 
+        $this->writePolicy->assertInvoiceDraftPayloadLimits($invoicePayload);
         $path = str_replace(['{orgId}', '{opContextOrgId}'], rawurlencode($organizationId), $route);
         $payloadHash = InvoiceDraftPreview::payloadHash($invoicePayload);
         $permit = $this->writePolicy->authorizeInvoiceDraftCreate($organizationId, $path, $payloadHash, $approval);

@@ -43,6 +43,8 @@ final class InvoiceDraftPreview
                 'action' => WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2,
                 'organizationId' => $organizationId,
                 'environment' => $this->config->environment(),
+                'method' => 'POST',
+                'path' => $path ?? 'PENDING_VALIDATED_ROUTE',
                 'payloadHash' => $payloadHash,
                 'approvalId' => 'PENDING_OPERATOR_VALIDATION',
                 'approvedBy' => 'PENDING_OPERATOR_VALIDATION',

@@ -1,0 +1,50 @@
+name: Conta Production Write Offline Tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'config/conta_config.example.php'
+      - 'tests/**'
+      - '.github/workflows/conta-production-write-offline-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-production-write-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f # v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: PHP syntax validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          find app tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l config/conta_config.example.php
+
+      - name: Controlled write foundation
+        run: php tests/controlled-write-foundation.php
+
+      - name: Remaining sandbox control regressions
+        run: php tests/remaining-control-paths.php
+
+      - name: Production write controls
+        run: php tests/production-write-controls.php
+
+      - name: Confirm no provider credentials or provider calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'PROVIDER_CREDENTIALS_USED=false'
+          echo 'PROVIDER_CALL_PERFORMED=false'
+          echo 'PRODUCTION_MUTATION_PERFORMED=false'

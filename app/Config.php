@@ -93,8 +93,8 @@ final class Config
 
     public function writePolicyVersion(): string
     {
-        $value = trim((string) $this->get('write_policy_version', '2026-07-16-gate0-4'));
-        return $value !== '' ? $value : '2026-07-16-gate0-4';
+        $value = trim((string) $this->get('write_policy_version', '2026-08-19-production-gate1'));
+        return $value !== '' ? $value : '2026-08-19-production-gate1';
     }
 
     public function allowedWriteOrganizationIds(): array
@@ -105,6 +105,33 @@ final class Config
     public function allowedWriteActions(): array
     {
         return $this->stringList($this->get('allowed_write_actions', []));
+    }
+
+    public function productionOrganizationReferenceHash(): string
+    {
+        return strtolower(trim((string) $this->get('production_organization_reference_hash', '')));
+    }
+
+    public function productionDecisionPacketSha256(): string
+    {
+        return strtolower(trim((string) $this->get('production_decision_packet_sha256', '')));
+    }
+
+    public function maxInvoiceDraftLines(): int
+    {
+        return max(1, min((int) $this->get('production_max_invoice_draft_lines', 1), 100));
+    }
+
+    public function maxInvoiceDraftLineAmount(): float
+    {
+        $value = (float) $this->get('production_max_invoice_draft_line_amount', 1.00);
+        return max(0.01, min($value, 100000000.0));
+    }
+
+    public function maxInvoiceDraftTotal(): float
+    {
+        $value = (float) $this->get('production_max_invoice_draft_total', 1.00);
+        return max(0.01, min($value, 100000000.0));
     }
 
     public function approvalMaxTtlSeconds(): int
@@ -125,8 +152,8 @@ final class Config
 
     public function approvalKeyId(): string
     {
-        $value = trim((string) $this->get('approval_key_id', 'conta-sandbox-approval-v1'));
-        return $value !== '' ? $value : 'conta-sandbox-approval-v1';
+        $value = trim((string) $this->get('approval_key_id', 'conta-approval-v1'));
+        return $value !== '' ? $value : 'conta-approval-v1';
     }
 
     public function releaseCommit(): string
@@ -152,6 +179,11 @@ final class Config
     public function sandboxAuthorizationPath(): string
     {
         return (string) $this->get('sandbox_authorization_path', __DIR__ . '/../storage/sandbox-authorization.json');
+    }
+
+    public function productionAuthorizationPath(): string
+    {
+        return (string) $this->get('production_authorization_path', __DIR__ . '/../storage/production-authorization.json');
     }
 
     public function requestTimeoutSeconds(): int
@@ -201,6 +233,11 @@ final class Config
             'write_policy_version' => $this->writePolicyVersion(),
             'allowed_write_action_count' => count($this->allowedWriteActions()),
             'allowed_write_organization_count' => count($this->allowedWriteOrganizationIds()),
+            'has_production_organization_reference_hash' => preg_match('/^[a-f0-9]{64}$/', $this->productionOrganizationReferenceHash()) === 1,
+            'has_production_decision_packet_hash' => preg_match('/^[a-f0-9]{64}$/', $this->productionDecisionPacketSha256()) === 1,
+            'production_max_invoice_draft_lines' => $this->maxInvoiceDraftLines(),
+            'production_max_invoice_draft_line_amount' => $this->maxInvoiceDraftLineAmount(),
+            'production_max_invoice_draft_total' => $this->maxInvoiceDraftTotal(),
             'require_signed_approvals' => $this->requireSignedApprovals(),
             'has_approval_signing_key' => $this->approvalSigningKey() !== '',
             'has_release_commit' => $this->releaseCommit() !== '',
