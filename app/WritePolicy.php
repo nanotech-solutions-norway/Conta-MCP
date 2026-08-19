@@ -13,7 +13,8 @@ final class WritePolicy
         private readonly ApprovalEnvelopeVerifier $approvalVerifier,
         private readonly ReleaseManifestGuard $releaseManifestGuard,
         private readonly WriteKillSwitch $killSwitch,
-        private readonly SandboxAuthorizationGate $sandboxAuthorizationGate
+        private readonly SandboxAuthorizationGate $sandboxAuthorizationGate,
+        private readonly ProductionAuthorizationGate $productionAuthorizationGate
     ) {
     }
 
@@ -53,9 +54,63 @@ final class WritePolicy
             'signed_approvals_required' => $this->config->requireSignedApprovals(),
             'release_manifest' => $this->releaseManifestGuard->status(),
             'kill_switch' => $this->killSwitch->status(self::ACTION_INVOICE_DRAFT_CREATE_V2),
-            'sandbox_authorization' => $this->sandboxAuthorizationGate->status(),
+            'authorization_gate' => $this->authorizationGate()->status(),
             'readback_route_configured' => $this->config->readbackInvoiceDraftRoute() !== '',
+            'production_limits' => [
+                'maximum_lines' => $this->config->maxInvoiceDraftLines(),
+                'maximum_line_amount' => $this->config->maxInvoiceDraftLineAmount(),
+                'maximum_draft_total' => $this->config->maxInvoiceDraftTotal(),
+                'maximum_provider_mutations' => 1,
+                'automatic_retry' => false,
+            ],
         ];
+    }
+
+    public function assertInvoiceDraftPayloadLimits(array $payload): void
+    {
+        if ($this->config->environment() !== 'production') {
+            return;
+        }
+
+        $lines = $payload['invoiceDraftLines'] ?? null;
+        if (!is_array($lines) || !array_is_list($lines) || $lines === []) {
+            throw new RuntimeException('production_invoice_draft_lines_missing');
+        }
+        if (count($lines) > $this->config->maxInvoiceDraftLines()) {
+            throw new RuntimeException('production_invoice_draft_line_limit_exceeded');
+        }
+        if (($payload['invoiceCurrency'] ?? null) !== 'NOK') {
+            throw new RuntimeException('production_invoice_draft_currency_not_allowed');
+        }
+
+        $total = 0.0;
+        foreach ($lines as $line) {
+            if (!is_array($line)) {
+                throw new RuntimeException('production_invoice_draft_line_invalid');
+            }
+            foreach (['price', 'quantity'] as $field) {
+                if (!isset($line[$field]) || !is_numeric($line[$field])) {
+                    throw new RuntimeException('production_invoice_draft_line_' . $field . '_invalid');
+                }
+            }
+
+            $price = (float) $line['price'];
+            $quantity = (float) $line['quantity'];
+            $discount = isset($line['discount']) && is_numeric($line['discount']) ? (float) $line['discount'] : 0.0;
+            if ($price < 0 || $quantity <= 0 || $discount < 0 || $discount > 100) {
+                throw new RuntimeException('production_invoice_draft_line_numeric_bounds_invalid');
+            }
+
+            $lineAmount = $price * $quantity * (1 - ($discount / 100));
+            if ($lineAmount > $this->config->maxInvoiceDraftLineAmount() + 0.000001) {
+                throw new RuntimeException('production_invoice_draft_line_amount_exceeded');
+            }
+            $total += $lineAmount;
+        }
+
+        if ($total > $this->config->maxInvoiceDraftTotal() + 0.000001) {
+            throw new RuntimeException('production_invoice_draft_total_exceeded');
+        }
     }
 
     public function authorizeInvoiceDraftCreate(
@@ -70,10 +125,11 @@ final class WritePolicy
         $manifestHash = $this->assertExecutionGateOpen($action);
         $this->assertActionAllowed($action);
         $this->assertOrganizationAllowed($organizationId);
+        $this->assertProductionOrganizationBinding($organizationId);
         $this->assertRouteMatches($organizationId, $path);
         $this->approvalVerifier->verify($approval);
-        $approvalData = $this->validateApproval($approval, $action, $organizationId, $payloadHash);
-        $authorizationId = $this->sandboxAuthorizationGate->authorize(
+        $approvalData = $this->validateApproval($approval, $action, $organizationId, $payloadHash, $method, $path);
+        $authorizationId = $this->authorizationGate()->authorize(
             $action,
             $organizationId,
             $payloadHash,
@@ -114,8 +170,9 @@ final class WritePolicy
             throw new RuntimeException('write_dispatch_release_manifest_changed');
         }
         $this->assertOrganizationAllowed($permit->organizationId);
+        $this->assertProductionOrganizationBinding($permit->organizationId);
         $this->assertRouteMatches($permit->organizationId, $path);
-        $authorizationId = $this->sandboxAuthorizationGate->authorize(
+        $authorizationId = $this->authorizationGate()->authorize(
             $permit->action,
             $permit->organizationId,
             $permit->payloadHash,
@@ -138,11 +195,8 @@ final class WritePolicy
         if (!$this->config->executionAllowed()) {
             throw new RuntimeException('execution_not_authorized');
         }
-        if ($this->config->environment() === 'production') {
-            if (!$this->config->productionWriteApproved()) {
-                throw new RuntimeException('production_write_not_approved');
-            }
-            throw new RuntimeException('production_write_program_not_implemented');
+        if ($this->config->environment() === 'production' && !$this->config->productionWriteApproved()) {
+            throw new RuntimeException('production_write_not_approved');
         }
         if ($this->config->requireSignedApprovals() && $this->config->approvalSigningKey() === '') {
             throw new RuntimeException('approval_signing_key_missing');
@@ -153,8 +207,15 @@ final class WritePolicy
 
         $this->killSwitch->assertActionOpen($action);
         $manifestHash = $this->releaseManifestGuard->assertApproved();
-        $this->sandboxAuthorizationGate->assertPacketReady();
+        $this->authorizationGate()->assertPacketReady();
         return $manifestHash;
+    }
+
+    private function authorizationGate(): SandboxAuthorizationGate|ProductionAuthorizationGate
+    {
+        return $this->config->environment() === 'production'
+            ? $this->productionAuthorizationGate
+            : $this->sandboxAuthorizationGate;
     }
 
     private function assertActionAllowed(string $action): void
@@ -169,6 +230,21 @@ final class WritePolicy
         $allowed = $this->config->allowedWriteOrganizationIds();
         if ($organizationId === '' || $allowed === [] || !in_array($organizationId, $allowed, true)) {
             throw new RuntimeException('write_organization_not_allowlisted');
+        }
+    }
+
+    private function assertProductionOrganizationBinding(string $organizationId): void
+    {
+        if ($this->config->environment() !== 'production') {
+            return;
+        }
+
+        $expected = $this->config->productionOrganizationReferenceHash();
+        if (!preg_match('/^[a-f0-9]{64}$/', $expected)) {
+            throw new RuntimeException('production_organization_reference_hash_missing');
+        }
+        if (!hash_equals($expected, hash('sha256', $organizationId))) {
+            throw new RuntimeException('production_organization_reference_hash_mismatch');
         }
     }
 
@@ -190,12 +266,18 @@ final class WritePolicy
         array $approval,
         string $action,
         string $organizationId,
-        string $payloadHash
+        string $payloadHash,
+        string $method,
+        string $path
     ): array {
         $requiredStrings = [
             'approvalId', 'approvedBy', 'action', 'organizationId', 'environment',
             'payloadHash', 'issuedAt', 'expiresAt', 'nonce', 'idempotencyKey',
         ];
+        if ($this->config->environment() === 'production') {
+            $requiredStrings[] = 'method';
+            $requiredStrings[] = 'path';
+        }
 
         foreach ($requiredStrings as $key) {
             if (!isset($approval[$key]) || !is_string($approval[$key]) || trim($approval[$key]) === '') {
@@ -217,6 +299,14 @@ final class WritePolicy
         }
         if ($approval['environment'] !== $this->config->environment()) {
             throw new RuntimeException('approval_environment_mismatch');
+        }
+        if ($this->config->environment() === 'production') {
+            if (strtoupper($approval['method']) !== $method) {
+                throw new RuntimeException('approval_method_mismatch');
+            }
+            if ($approval['path'] !== $path) {
+                throw new RuntimeException('approval_path_mismatch');
+            }
         }
         if (!hash_equals($payloadHash, strtolower($approval['payloadHash']))) {
             throw new RuntimeException('approval_payload_hash_mismatch');
