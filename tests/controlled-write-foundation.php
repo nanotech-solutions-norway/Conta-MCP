@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/ApprovalEnvelopeVerifier.php';
 require_once __DIR__ . '/../app/ReleaseManifestGuard.php';
 require_once __DIR__ . '/../app/WriteKillSwitch.php';
 require_once __DIR__ . '/../app/SandboxAuthorizationGate.php';
+require_once __DIR__ . '/../app/ProductionAuthorizationGate.php';
 require_once __DIR__ . '/../app/WriteDispatchPermit.php';
 require_once __DIR__ . '/../app/WritePolicy.php';
 require_once __DIR__ . '/../app/WriteExecutionLedger.php';
@@ -49,7 +50,8 @@ $blockedPolicy = new WritePolicy(
     $approvalVerifier,
     new ReleaseManifestGuard($blockedConfig, dirname(__DIR__)),
     new WriteKillSwitch($blockedConfig),
-    new SandboxAuthorizationGate($blockedConfig, $approvalVerifier)
+    new SandboxAuthorizationGate($blockedConfig, $approvalVerifier),
+    new ProductionAuthorizationGate($blockedConfig, $approvalVerifier)
 );
 $preview = new InvoiceDraftPreview($blockedConfig, $blockedPolicy);
 
@@ -76,6 +78,12 @@ $productionConfig = new Config([
     'runtime_write_blocked' => false,
     'execution_allowed' => true,
     'production_write_approved' => true,
+    'allowed_write_actions' => [WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2],
+    'allowed_write_organization_ids' => ['org-prod'],
+    'production_organization_reference_hash' => hash('sha256', 'org-prod'),
+    'production_decision_packet_sha256' => str_repeat('a', 64),
+    'create_invoice_draft_route' => '/invoice/organizations/{opContextOrgId}/invoice-drafts',
+    'readback_invoice_draft_route' => '/invoice/organizations/{opContextOrgId}/invoice-drafts/{id}',
 ]);
 $productionVerifier = new ApprovalEnvelopeVerifier($productionConfig);
 $productionPolicy = new WritePolicy(
@@ -83,8 +91,21 @@ $productionPolicy = new WritePolicy(
     $productionVerifier,
     new ReleaseManifestGuard($productionConfig, dirname(__DIR__)),
     new WriteKillSwitch($productionConfig),
-    new SandboxAuthorizationGate($productionConfig, $productionVerifier)
+    new SandboxAuthorizationGate($productionConfig, $productionVerifier),
+    new ProductionAuthorizationGate($productionConfig, $productionVerifier)
 );
-assertTrue(!$productionPolicy->effectiveExecutionEnabled(), 'Production must remain blocked because the production write program is not implemented.');
+assertTrue(!$productionPolicy->effectiveExecutionEnabled(), 'Production must remain blocked while release/kill-switch/authorization evidence is absent.');
+
+expectException(
+    fn() => $productionPolicy->assertInvoiceDraftPayloadLimits([
+        'invoiceCurrency' => 'NOK',
+        'invoiceDraftLines' => [['price' => 1.01, 'quantity' => 1, 'discount' => 0]],
+    ]),
+    'production_invoice_draft_line_amount_exceeded'
+);
+$productionPolicy->assertInvoiceDraftPayloadLimits([
+    'invoiceCurrency' => 'NOK',
+    'invoiceDraftLines' => [['price' => 1.00, 'quantity' => 1, 'discount' => 0]],
+]);
 
 echo "CONTROLLED_WRITE_FOUNDATION_TESTS_PASSED\n";
