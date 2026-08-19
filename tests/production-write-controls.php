@@ -165,8 +165,10 @@ $ledger = new WriteExecutionLedger($ledgerPath);
 $ledger->reserve($permit);
 expectProductionException(fn() => $ledger->reserve($permit), 'idempotency_key_already_used');
 
+$wrongCurrency = $payload;
+$wrongCurrency['invoiceCurrency'] = 'EUR';
 expectProductionException(
-    fn() => $policy->assertInvoiceDraftPayloadLimits($payload + ['invoiceCurrency' => 'EUR']),
+    fn() => $policy->assertInvoiceDraftPayloadLimits($wrongCurrency),
     'production_invoice_draft_currency_not_allowed'
 );
 $tooLarge = $payload;
