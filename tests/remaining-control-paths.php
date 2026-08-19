@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/ApprovalEnvelopeVerifier.php';
 require_once __DIR__ . '/../app/ReleaseManifestGuard.php';
 require_once __DIR__ . '/../app/WriteKillSwitch.php';
 require_once __DIR__ . '/../app/SandboxAuthorizationGate.php';
+require_once __DIR__ . '/../app/ProductionAuthorizationGate.php';
 require_once __DIR__ . '/../app/WriteDispatchPermit.php';
 require_once __DIR__ . '/../app/WritePolicy.php';
 require_once __DIR__ . '/../app/WriteExecutionLedger.php';
@@ -74,7 +75,8 @@ $approvalVerifier = new ApprovalEnvelopeVerifier($config);
 $manifestGuard = new ReleaseManifestGuard($config, $root);
 $killSwitch = new WriteKillSwitch($config);
 $sandboxGate = new SandboxAuthorizationGate($config, $approvalVerifier);
-$policy = new WritePolicy($config, $approvalVerifier, $manifestGuard, $killSwitch, $sandboxGate);
+$productionGate = new ProductionAuthorizationGate($config, $approvalVerifier);
+$policy = new WritePolicy($config, $approvalVerifier, $manifestGuard, $killSwitch, $sandboxGate, $productionGate);
 
 $observed = $manifestGuard->buildObservedManifest(['app/TestRuntime.php']);
 $observed['status'] = 'APPROVED';
@@ -168,15 +170,22 @@ $productionConfig = new Config([
     'runtime_write_blocked' => false,
     'execution_allowed' => true,
     'production_write_approved' => true,
+    'allowed_write_actions' => [WritePolicy::ACTION_INVOICE_DRAFT_CREATE_V2],
+    'allowed_write_organization_ids' => ['org-prod'],
+    'production_organization_reference_hash' => hash('sha256', 'org-prod'),
+    'production_decision_packet_sha256' => str_repeat('d', 64),
+    'readback_invoice_draft_route' => $readbackRoute,
 ]);
+$productionApprovalVerifier = new ApprovalEnvelopeVerifier($productionConfig);
 $productionPolicy = new WritePolicy(
     $productionConfig,
-    new ApprovalEnvelopeVerifier($productionConfig),
+    $productionApprovalVerifier,
     new ReleaseManifestGuard($productionConfig, $root),
     new WriteKillSwitch($productionConfig),
-    new SandboxAuthorizationGate($productionConfig, new ApprovalEnvelopeVerifier($productionConfig))
+    new SandboxAuthorizationGate($productionConfig, $productionApprovalVerifier),
+    new ProductionAuthorizationGate($productionConfig, $productionApprovalVerifier)
 );
-assertControl(!$productionPolicy->effectiveExecutionEnabled(), 'Production program must remain unimplemented and blocked.');
+assertControl(!$productionPolicy->effectiveExecutionEnabled(), 'Production must remain blocked without an approved release, open kill switch and protected authorization packet.');
 
 @unlink($manifestPath);
 @unlink($killSwitchPath);
