@@ -109,6 +109,32 @@ authorized work unit. It does not establish a standing production-write
 approval or authorize broader invoice, customer, ledger, payment, payroll,
 bank, voucher, correction, deletion, send, post or finalize capabilities.
 
+## Consumed-gate closeout
+
+After the one-use execution cycle was closed, the protected non-confidential
+execution-date prerequisite was changed from the completed work unit's date to
+the non-date marker `BLOCKED_AUTHORIZATION_CONSUMED`. The execution controller
+requires an exact `YYYY-MM-DD` value matching the current Oslo date, so this
+marker fails closed before server or provider contact.
+
+The protected production-decision environment has no operator-review
+attestation variable. Its accounting-review and credential-custody attestation
+variables remain false. A future decision packet therefore cannot be produced
+from the completed cycle's review state.
+
+```text
+CONTA_PROD_INVOICE_DATE=BLOCKED_AUTHORIZATION_CONSUMED
+CONTA_PROD_OPERATOR_REVIEW_ATTESTED=NOT_PRESENT
+CONTA_PROD_ACCOUNTING_REVIEW_ATTESTED=false
+CONTA_PROD_CREDENTIAL_CUSTODY_ATTESTED=false
+CONSUMED_EXECUTION_WORKFLOW_REUSE_BLOCKED=true
+PROVIDER_CALL_PERFORMED=false
+PRODUCTION_MUTATION_PERFORMED=false
+```
+
+Protected-variable closeout evidence is recorded in issue #92:
+`https://github.com/nanotech-solutions-norway/Conta-MCP/issues/92#issuecomment-5403181117`.
+
 ## Progress record
 
 ```text
