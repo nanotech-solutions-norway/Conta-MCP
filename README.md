@@ -4,13 +4,13 @@
 **Target runtime:** Domeneshop PHP hosting  
 **Active endpoint:** `https://mcp.atlas-ai.no`  
 **Superseded endpoint:** `https://www.nanoconcept.no/conta-mcp/mcp` (GitHub Pages 404; not the active PHP runtime)  
-**Rollout mode:** Production fail-closed runtime live; first bounded unsent invoice-draft create validated; no standing production-write authority  
+**Rollout mode:** Operational V1 accepted in production; fail-closed by default; no standing production-write authority  
 
 This repository contains a dependency-free PHP MCP-style JSON-RPC server for connecting an AI orchestrator to Conta through Conta's official REST API.
 
 ## Current status
 
-The canonical current production record is `docs/rollout/PRODUCTION_FIRST_INVOICE_DRAFT_EXECUTION_RESULT_20260825.md`. It supersedes older README/status text that described the production-write program as not implemented.
+The canonical operational status is `docs/rollout/CONTA_MCP_OPERATIONAL_V1_ACCEPTANCE_20261013.md`, with the bounded production-write evidence in `docs/rollout/PRODUCTION_FIRST_INVOICE_DRAFT_EXECUTION_RESULT_20260825.md`. These supersede older README/status text that described the production-write program as not implemented.
 
 ```text
 CONTROLLED_WRITE_FOUNDATION_MERGED
@@ -20,6 +20,8 @@ FAIL_CLOSED_PRODUCTION_RUNTIME_LIVE
 PRODUCTION_WRITE_IMPLEMENTATION_IMPLEMENTED
 FIRST_BOUNDED_PRODUCTION_INVOICE_DRAFT_VALIDATED
 MANDATORY_GET_ONLY_READBACK_VERIFIED
+OPERATIONAL_V1_ACCEPTANCE_VERIFIED
+CONTA_MCP_V1_OPERATIONAL=true
 ONE_USE_AUTHORIZATION_CONSUMED
 PRODUCTION_WRITE_PATH_CURRENTLY_OPEN=false
 WRITE_TOOLS_CURRENTLY_LIVE=false
@@ -159,7 +161,7 @@ write_kill_switch=blocked_or_missing
 sandbox_authorization=missing_or_pending
 ```
 
-Production execution is explicitly refused because a production write program has not been implemented.
+Production execution remains explicitly refused while the fail-closed gates are closed. The bounded production create path is implemented and validated, but every future production mutation requires a new explicit one-use work unit and authorization.
 
 ## Repository structure
 
@@ -207,14 +209,15 @@ A successful source test does not authorize deployment or a provider call.
 
 1. Treat the completed first bounded production invoice-draft execution as the baseline for operational v1.
 2. Keep the production runtime fail-closed between work units; do not reuse the consumed authorization.
-3. Run a current non-mutating operational acceptance pass: public health, authenticated initialization, `tools/list`, read-only tools, preview behavior, deployed runtime hashes and closed-gate verification.
-4. Reconcile canonical GitHub and Google Drive status records against PR #93/#94 evidence.
-5. Operate invoice-draft creation only through a fresh one-use, payload-bound authorization for each explicitly approved work unit.
+3. Treat the 2026-10-13 non-mutating operational acceptance as the production V1 baseline.
+4. Operate invoice-draft creation only through a fresh one-use, payload-bound authorization for each explicitly approved work unit.
+5. Rotate the legacy Domeneshop webhotel credential identified in historical Drive evidence and remove the plaintext historical copy after successful rotation and connectivity validation.
 6. Expand additional low-risk write classes one at a time using the same preview, signing, idempotency, allowlist, kill-switch, readback and audit controls.
 7. Keep send/finalize, corrections/deletion, ledger, bank, payment, payroll and VAT/statutory capabilities in separate higher-risk rollout programs.
 
 ## Current rollout records
 
+- `docs/rollout/CONTA_MCP_OPERATIONAL_V1_ACCEPTANCE_20261013.md`
 - `docs/rollout/SANDBOX_INVOICE_DRAFT_VERIFIED_SUCCESS_20260816.md`
 - `docs/rollout/RECOMMENDED_NEXT_ACTION_20260816.md`
 - `docs/rollout/SANDBOX_CREATED_DRAFT_READBACK_RECONCILIATION_20260816.md`
