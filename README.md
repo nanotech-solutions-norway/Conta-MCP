@@ -4,37 +4,61 @@
 **Target runtime:** Domeneshop PHP hosting  
 **Active endpoint:** `https://mcp.atlas-ai.no`  
 **Superseded endpoint:** `https://www.nanoconcept.no/conta-mcp/mcp` (GitHub Pages 404; not the active PHP runtime)  
-**Rollout mode:** Sandbox controlled-write validated; production write program not implemented  
+**Rollout mode:** Production fail-closed runtime live; first bounded unsent invoice-draft create validated; no standing production-write authority  
 
 This repository contains a dependency-free PHP MCP-style JSON-RPC server for connecting an AI orchestrator to Conta through Conta's official REST API.
 
 ## Current status
 
+The canonical current production record is `docs/rollout/PRODUCTION_FIRST_INVOICE_DRAFT_EXECUTION_RESULT_20260825.md`. It supersedes older README/status text that described the production-write program as not implemented.
+
 ```text
 CONTROLLED_WRITE_FOUNDATION_MERGED
 POST_MERGE_CI_PASSED
 LOCAL_DESKTOP_VALIDATION_VERIFIED
-PUBLIC_RUNTIME_INVENTORY_PHASE_2A_VERIFIED
-AUTHENTICATED_RUNTIME_INVENTORY_PHASE_2B_VERIFIED
-LEGACY_PRODUCTION_RUNTIME_0_3_0_IDENTIFIED
-LEGACY_WRITE_GATE_CONTAINMENT_VERIFIED
-SANDBOX_INVOICE_DRAFT_CREATE_VERIFIED
-SANDBOX_READBACK_VERIFICATION_VERIFIED
-SANDBOX_REPLAY_PROTECTION_VERIFIED
-SANDBOX_KILL_SWITCH_CLOSURE_VERIFIED
-SANDBOX_RUNTIME_PATCHES_BAKED_INTO_SOURCE
-RUNTIME_DEPLOYMENT_COMMIT_NOT_VERIFIED
-PRODUCTION_WRITE_AUTHORIZED_FALSE
-PRODUCTION_WRITE_PROGRAM_NOT_IMPLEMENTED
+FAIL_CLOSED_PRODUCTION_RUNTIME_LIVE
+PRODUCTION_WRITE_IMPLEMENTATION_IMPLEMENTED
+FIRST_BOUNDED_PRODUCTION_INVOICE_DRAFT_VALIDATED
+MANDATORY_GET_ONLY_READBACK_VERIFIED
+ONE_USE_AUTHORIZATION_CONSUMED
+PRODUCTION_WRITE_PATH_CURRENTLY_OPEN=false
+WRITE_TOOLS_CURRENTLY_LIVE=false
+GENERAL_PRODUCTION_WRITE_RELEASE=NOT_APPROVED
 ```
 
-The first controlled sandbox invoice-draft write was created and independently verified on 2026-08-16. The exact validated payload uses `vatCode=high`, `lineNo=1`, and canonical payload SHA-256 `79ae9a521fb79e1852721eb4f4f25e315d3122849bfe2b2df146e761d974cee7`.
+The first bounded production execution created exactly one **unsent NOK 1.00 validation invoice draft** and independently verified the controlled fields by GET-only reconciliation. Exactly one provider mutation occurred, no automatic retry was performed, and no send, posting, finalization, correction, deletion, customer mutation or other provider mutation was executed.
 
-Definitive evidence is recorded in:
+After the execution cycle, the runtime was returned to fail-closed state:
 
-`docs/rollout/SANDBOX_INVOICE_DRAFT_VERIFIED_SUCCESS_20260816.md`
+```text
+kill_switch_global_blocked=true
+enable_write_tools=false
+runtime_write_blocked=true
+execution_allowed=false
+production_write_approved=false
+allowed_write_actions=[]
+allowed_write_organization_ids=[]
+```
 
-The active production endpoint was previously identified as legacy runtime version `0.3.0-mcp-atlas-ai`. That runtime remains deployment-drift evidence and must not be treated as equivalent to canonical `main` until a separately authorized fail-closed deployment and runtime-parity verification are completed.
+The one-use production authorization is consumed. No further production mutation is authorized without a new operator-defined work unit, current governance evidence and a fresh one-use authorization.
+
+### Operational v1 boundary
+
+The practical v1 service boundary is:
+
+- authenticated health / MCP initialization;
+- read-only organization, customer and invoice tools;
+- deterministic non-mutating invoice-draft preview;
+- controlled unsent invoice-draft creation only through the existing one-use approval, allowlist, amount-limit, idempotency, kill-switch and mandatory-readback controls;
+- write gates closed by default between authorized work units.
+
+Invoice send/finalize, corrections, deletion, customer/product mutation, ledger, bank, payment, payroll, VAT/statutory and other broader write classes are outside the v1 standing capability and require separate action-specific rollout evidence and authorization.
+
+Definitive evidence:
+
+- `docs/rollout/PRODUCTION_FIRST_INVOICE_DRAFT_EXECUTION_RESULT_20260825.md`
+- PR #93 — record first production invoice-draft execution
+- PR #94 — record consumed production execution gate
 
 ## Security position
 
@@ -181,14 +205,13 @@ A successful source test does not authorize deployment or a provider call.
 
 ## Rollout sequence from current state
 
-1. Merge post-success stabilization only after CI/security validation passes.
-2. Retain the verified sandbox draft as evidence; do not create another draft or perform cleanup without separate authorization.
-3. Select the stabilized `main` commit as the next deployment candidate.
-4. Reconcile the active Domeneshop runtime against that commit.
-5. Prepare a fail-closed deployment preserving all production write gates closed.
-6. Obtain separate operator authorization before deployment.
-7. After deployment, verify health, authenticated initialization, `tools/list`, read-only tools, preview-only behavior, runtime version/hashes, and production write refusal.
-8. Design and review a separate production-write program only after fail-closed runtime parity is established.
+1. Treat the completed first bounded production invoice-draft execution as the baseline for operational v1.
+2. Keep the production runtime fail-closed between work units; do not reuse the consumed authorization.
+3. Run a current non-mutating operational acceptance pass: public health, authenticated initialization, `tools/list`, read-only tools, preview behavior, deployed runtime hashes and closed-gate verification.
+4. Reconcile canonical GitHub and Google Drive status records against PR #93/#94 evidence.
+5. Operate invoice-draft creation only through a fresh one-use, payload-bound authorization for each explicitly approved work unit.
+6. Expand additional low-risk write classes one at a time using the same preview, signing, idempotency, allowlist, kill-switch, readback and audit controls.
+7. Keep send/finalize, corrections/deletion, ledger, bank, payment, payroll and VAT/statutory capabilities in separate higher-risk rollout programs.
 
 ## Current rollout records
 
