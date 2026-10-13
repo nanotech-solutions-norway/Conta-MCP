@@ -212,8 +212,8 @@ A successful source test does not authorize deployment or a provider call.
 3. Treat the 2026-10-13 non-mutating operational acceptance as the production V1 baseline.
 4. Operate invoice-draft creation only through a fresh one-use, payload-bound authorization for each explicitly approved work unit.
 5. Rotate the legacy Domeneshop webhotel credential identified in historical Drive evidence and remove the plaintext historical copy after successful rotation and connectivity validation.
-6. Expand additional low-risk write classes one at a time using the same preview, signing, idempotency, allowlist, kill-switch, readback and audit controls.
-7. Keep send/finalize, corrections/deletion, ledger, bank, payment, payroll and VAT/statutory capabilities in separate higher-risk rollout programs.
+6. Use `docs/rollout/NEXT_SAFE_WORK_UNIT_20261014.md` as the current next-action record: operationalize repeatable bounded CREATE work units without standing write authority. Current official Conta OpenAPI does not document invoice-draft PUT/PATCH UPDATE, so no UPDATE capability is to be invented.
+7. Verify the current official provider contract before designing any new write class, and keep delete, send/finalize, corrections, ledger, bank, payment, payroll and VAT/statutory capabilities in separate higher-risk rollout programs.
 
 ## Current rollout records
 
