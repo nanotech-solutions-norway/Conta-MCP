@@ -218,6 +218,7 @@ A successful source test does not authorize deployment or a provider call.
 ## Current rollout records
 
 - `docs/rollout/CONTA_MCP_OPERATIONAL_V1_ACCEPTANCE_20261013.md`
+- `docs/rollout/CONTA_MCP_SFTP_CREDENTIAL_ROTATION_VALIDATION_20261015.md`
 - `docs/rollout/SANDBOX_INVOICE_DRAFT_VERIFIED_SUCCESS_20260816.md`
 - `docs/rollout/RECOMMENDED_NEXT_ACTION_20260816.md`
 - `docs/rollout/SANDBOX_CREATED_DRAFT_READBACK_RECONCILIATION_20260816.md`
