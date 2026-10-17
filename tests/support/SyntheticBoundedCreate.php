@@ -120,7 +120,7 @@ final class SyntheticBoundedCreate
             }
         }
         return [
-            'state' => $verified ? 'COMPLETED_VERIFIED' : ($attempts ? 'CLOSED_UNVERIFIED_NO_RETRY' : 'DENIED_CLOSED'),
+            'state' => $verified ? 'SIMULATED_VERIFIED' : ($attempts ? 'SIMULATED_CLOSED_UNVERIFIED_NO_RETRY' : 'SIMULATED_DENIED_CLOSED'),
             'reason' => $reason,
             'synthetic_attempt_count' => $attempts,
             'readback_verified' => $verified,
