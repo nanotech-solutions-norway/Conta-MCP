@@ -24,6 +24,8 @@ jobs:
         run: php tests/controlled-write-foundation.php
       - name: Invoice draft readback verifier tests
         run: php tests/invoice-draft-readback-verifier.php
+      - name: Repeatable bounded CREATE synthetic governance tests
+        run: php tests/repeatable-bounded-create.php
       - name: Remaining control path tests
         run: php tests/remaining-control-paths.php
       - name: Conta client route tests
