@@ -79,7 +79,12 @@ final class WriteExecutionLedger
             throw new RuntimeException('write_ledger_directory_unavailable');
         }
 
-        $handle = @fopen($this->path, 'c+');
+        // Exclusive creation distinguishes a fresh ledger from a torn empty file.
+        $handle = @fopen($this->path, 'x+');
+        $created = $handle !== false;
+        if (!$created) {
+            $handle = @fopen($this->path, 'r+');
+        }
         if ($handle === false) {
             throw new RuntimeException('write_ledger_unavailable');
         }
@@ -90,7 +95,10 @@ final class WriteExecutionLedger
             }
             rewind($handle);
             $raw = stream_get_contents($handle);
-            $state = is_string($raw) && trim($raw) !== '' ? json_decode($raw, true) : [];
+            if (!is_string($raw) || (!$created && trim($raw) === '')) {
+                throw new RuntimeException('write_ledger_corrupt');
+            }
+            $state = trim($raw) !== '' ? json_decode($raw, true) : [];
             if (!is_array($state)) {
                 throw new RuntimeException('write_ledger_corrupt');
             }
