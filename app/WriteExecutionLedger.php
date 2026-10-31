@@ -72,52 +72,71 @@ final class WriteExecutionLedger
         });
     }
 
+    /**
+     * Cooperating writers must all use this implementation. The stable lock file
+     * must never be removed while writers exist. Local same-filesystem rename is
+     * required; this does not certify network filesystem or power-loss durability.
+     */
     private function mutate(callable $callback): void
     {
         $dir = dirname($this->path);
         if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
             throw new RuntimeException('write_ledger_directory_unavailable');
         }
-
-        // Exclusive creation distinguishes a fresh ledger from a torn empty file.
-        $handle = @fopen($this->path, 'x+');
-        $created = $handle !== false;
-        if (!$created) {
-            $handle = @fopen($this->path, 'r+');
-        }
-        if ($handle === false) {
+        $lock = @fopen($this->path . '.lock', 'c+');
+        if ($lock === false) {
             throw new RuntimeException('write_ledger_unavailable');
         }
-
+        $temporary = null;
+        $output = null;
         try {
-            if (!flock($handle, LOCK_EX)) {
+            if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('write_ledger_lock_failed');
             }
-            rewind($handle);
-            $raw = stream_get_contents($handle);
-            if (!is_string($raw) || (!$created && trim($raw) === '')) {
+            clearstatcache(true, $this->path);
+            $exists = file_exists($this->path);
+            $raw = $exists ? @file_get_contents($this->path) : null;
+            if ($exists && (!is_string($raw) || trim($raw) === '')) {
                 throw new RuntimeException('write_ledger_corrupt');
             }
-            $state = trim($raw) !== '' ? json_decode($raw, true) : [];
+            $state = $exists ? json_decode($raw, true) : [];
             if (!is_array($state)) {
                 throw new RuntimeException('write_ledger_corrupt');
             }
-
             $callback($state);
-
             $encoded = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             if ($encoded === false) {
                 throw new RuntimeException('write_ledger_encode_failed');
             }
-            ftruncate($handle, 0);
-            rewind($handle);
-            if (fwrite($handle, $encoded . PHP_EOL) === false) {
+            $temporary = $this->path . '.pending-' . bin2hex(random_bytes(16));
+            $output = @fopen($temporary, 'x+b');
+            if ($output === false || !@chmod($temporary, 0600)) {
                 throw new RuntimeException('write_ledger_write_failed');
             }
-            fflush($handle);
-            flock($handle, LOCK_UN);
+            $bytes = $encoded . PHP_EOL;
+            $offset = 0;
+            while ($offset < strlen($bytes)) {
+                $written = fwrite($output, substr($bytes, $offset));
+                if ($written === false || $written === 0) {
+                    throw new RuntimeException('write_ledger_write_failed');
+                }
+                $offset += $written;
+            }
+            if (!fflush($output) || !fsync($output)) {
+                throw new RuntimeException('write_ledger_write_failed');
+            }
+            fclose($output);
+            $output = null;
+            // Publish only a complete snapshot; never truncate the prior ledger.
+            if (!@rename($temporary, $this->path)) {
+                throw new RuntimeException('write_ledger_write_failed');
+            }
+            $temporary = null;
         } finally {
-            fclose($handle);
+            if (is_resource($output)) { fclose($output); }
+            if ($temporary !== null && is_file($temporary)) { @unlink($temporary); }
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
     }
 }
