@@ -41,6 +41,9 @@ jobs:
       - name: Production write controls
         run: php tests/production-write-controls.php
 
+      - name: Torn empty ledger denial
+        run: php tests/empty-ledger-denial.php
+
       - name: Confirm no provider credentials or provider calls
         shell: bash
         run: |
