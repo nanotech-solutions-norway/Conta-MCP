@@ -94,6 +94,9 @@ final class WriteExecutionLedger
                 throw new RuntimeException('write_ledger_lock_failed');
             }
             clearstatcache(true, $this->path);
+            if (is_link($this->path)) {
+                throw new RuntimeException('write_ledger_corrupt');
+            }
             $exists = file_exists($this->path);
             $raw = $exists ? @file_get_contents($this->path) : null;
             if ($exists && (!is_string($raw) || trim($raw) === '')) {
@@ -102,6 +105,21 @@ final class WriteExecutionLedger
             $state = $exists ? json_decode($raw, true) : [];
             if (!is_array($state)) {
                 throw new RuntimeException('write_ledger_corrupt');
+            }
+            if ($exists) {
+                // Valid JSON alone does not prove replay indexes survived.
+                foreach (['entries', 'approval_nonces', 'authorization_ids'] as $index) {
+                    if (!array_key_exists($index, $state) || !is_array($state[$index])) {
+                        throw new RuntimeException('write_ledger_corrupt');
+                    }
+                }
+                foreach ($state['entries'] as $entry) {
+                    if (!is_array($entry) || !in_array($entry['status'] ?? null,
+                        ['reserved', 'completed_verified', 'failed_or_unverified'], true) ||
+                        !is_string($entry['payload_hash'] ?? null)) {
+                        throw new RuntimeException('write_ledger_corrupt');
+                    }
+                }
             }
             $callback($state);
             $encoded = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
