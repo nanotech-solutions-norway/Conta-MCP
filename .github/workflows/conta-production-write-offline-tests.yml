@@ -44,6 +44,9 @@ jobs:
       - name: Torn empty ledger denial
         run: php tests/empty-ledger-denial.php
 
+      - name: Ledger subprocess collision and crash regressions
+        run: php tests/process-ledger-regressions.php
+
       - name: Confirm no provider credentials or provider calls
         shell: bash
         run: |
