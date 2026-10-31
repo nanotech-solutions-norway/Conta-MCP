@@ -30,7 +30,7 @@ $children = [];
 try {
     $path = $root . '/collision.json';
     file_put_contents($path, '{"entries":{},"approval_nonces":{},"authorization_ids":{}}');
-    $lock = fopen($path, 'r+');
+    $lock = fopen($path . '.lock', 'c+');
     demand(flock($lock, LOCK_EX), 'fixture lock');
     for ($i=0; $i<2; $i++) {
         $pipes = [];
@@ -76,9 +76,26 @@ try {
     } catch (RuntimeException $error) {
         demand($error->getMessage() === 'idempotency_key_already_used', 'wrong uncertain denial');
     }
+    // A crash before atomic rename leaves a partial temporary file. It must
+    // never replace the committed snapshot or reopen the consumed reservation.
+    $before = file_get_contents($path);
+    file_put_contents($path . '.pending-orphan', '{"entries":');
+    try {
+        (new WriteExecutionLedger($path))->reserve(permit());
+        throw new LogicException('orphan reset reservation');
+    } catch (RuntimeException $error) {
+        demand($error->getMessage() === 'idempotency_key_already_used', 'orphan replay denial');
+    }
+    demand(file_get_contents($path) === $before, 'committed snapshot changed by orphan');
+    demand(file_get_contents($path . '.pending-orphan') === '{"entries":', 'orphan evidence changed');
+    clearstatcache(true, $path);
+    $inode = fileinode($path);
+    (new WriteExecutionLedger($path))->complete('synthetic-key', false);
+    clearstatcache(true, $path);
+    demand(fileinode($path) !== $inode, 'snapshot was truncated instead of replaced');
     $raw = file_get_contents($path);
     demand(!str_contains($raw, 'synthetic-org') && !str_contains($raw,'synthetic-approval'), 'unredacted audit fields');
-    echo "PROCESS_LEDGER_REGRESSIONS_PASSED=6\nPROVIDER_CALL_PERFORMED=false\n";
+    echo "PROCESS_LEDGER_REGRESSIONS_PASSED=10\nPROVIDER_CALL_PERFORMED=false\n";
 } finally {
     foreach ($children as [$process,$pipes]) {
         proc_terminate($process);
