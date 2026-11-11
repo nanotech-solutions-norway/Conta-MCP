@@ -63,7 +63,7 @@ The operator stated in the 11.11.2026 ChatGPT session that the security review w
 ### Evidence and remaining blockers
 
 - Synthetic bounded-CREATE simulator and its CI suite were merged through PR #100. Subsequent ledger hardening PRs #103–#106 were merged. The latest readback for PR #106 records successful offline CI, ten malformed/corrupt/symlink denials, and no provider side effects. The merged code remains an offline/synthetic validation path.
-- The current main branch is `449e1082c9ae61e2bdf8d449f56f212d53c25a5e`; it descends from the ledger-hardening merge `a049745dc695a9feb14d5f3c55f1060975b943cc`.
+- The main-branch baseline inspected before PR #108 was `449e1082c9ae61e2bdf8d449f56f212d53c25a5e`, descending from ledger-hardening merge `a049745dc695a9feb14d5f3c55f1060975b943cc`.
 - **Not cleared:** production/runtime transition. All writers using the old inode-lock scheme must be stopped or upgraded together before the stable-sidecar-lock implementation is used. No current runtime writer inventory, provider identity, write grant, rollback envelope, or exact protected deployment authority was verified in this review. No runtime transition or provider operation is authorized here.
 - **Not qualified:** power-loss durability and network filesystems. The current implementation states its boundary as cooperating writers on a local same-filesystem rename. Do not claim guarantees beyond that boundary without a separately scoped environment qualification.
 
