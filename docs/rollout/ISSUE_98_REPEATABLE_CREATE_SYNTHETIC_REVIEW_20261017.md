@@ -52,3 +52,29 @@ The pre-read and response are supplied as inert fixtures; they are **not** actua
 - No standing production-write gate, undocumented UPDATE, provider POST or automatic retry.
 - No provider identifiers, secrets or raw invoice/customer/accounting records in source, issues, logs, or Drive.
 - Mark Issue #98 COMPLETE only after source-controlled implementation, passing positive/negative tests, explicitly approved exact contract, replay/idempotency evidence, fail-closed verification and independent acceptance. Local test coverage has **no approved completion denominator** (progress N/A).
+
+
+## Owner review and current boundary — 09:19, 11.11.2026 (Europe/Madrid)
+
+### Owner review disposition
+
+The operator stated in the 11.11.2026 ChatGPT session that the security review was performed by the owner and that owner review is sufficient. For this internal, synthetic-only contract, record the review gate as **OWNER REVIEW ACCEPTED**. This is an operator-attested decision; the GitHub connector does not independently establish the operator's GitHub identity or the contents of a separate review artifact.
+
+### Evidence and remaining blockers
+
+- Synthetic bounded-CREATE simulator and its CI suite were merged through PR #100. Subsequent ledger hardening PRs #103–#106 were merged. The latest readback for PR #106 records successful offline CI, ten malformed/corrupt/symlink denials, and no provider side effects. The merged code remains an offline/synthetic validation path.
+- The current main branch is `449e1082c9ae61e2bdf8d449f56f212d53c25a5e`; it descends from the ledger-hardening merge `a049745dc695a9feb14d5f3c55f1060975b943cc`.
+- **Not cleared:** production/runtime transition. All writers using the old inode-lock scheme must be stopped or upgraded together before the stable-sidecar-lock implementation is used. No current runtime writer inventory, provider identity, write grant, rollback envelope, or exact protected deployment authority was verified in this review. No runtime transition or provider operation is authorized here.
+- **Not qualified:** power-loss durability and network filesystems. The current implementation states its boundary as cooperating writers on a local same-filesystem rename. Do not claim guarantees beyond that boundary without a separately scoped environment qualification.
+
+### Status
+
+`OWNER_REVIEW_ACCEPTED / SYNTHETIC_CI_EVIDENCE_PRESENT / RUNTIME_TRANSITION_BLOCKED / DURABILITY_SCOPE_LIMITED`
+
+Issue #98 remains **OPEN / PARTIAL**. The synthetic governance and ledger-hardening work is review-accepted within its stated scope. Production integration, runtime rollout, and any real Conta CREATE remain separate protected work. Progress remains **N/A%** because no approved completion denominator exists.
+
+### Next safe actions
+
+1. Keep live execution fail-closed; do not mix old and new writer implementations.
+2. For any future runtime rollout, first prepare a fresh exact inventory of every active writer, runtime identity/grant, storage type, rollback path, and acceptance readback. Require the applicable exact protected authority and provider permission before deployment.
+3. If a future deployment needs network-filesystem or power-loss guarantees, qualify that exact storage/runtime with fault-injection and durable readback before enabling writes. Otherwise retain the documented local-filesystem-only boundary and deny unsupported configurations.
